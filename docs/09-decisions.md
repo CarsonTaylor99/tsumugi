@@ -68,6 +68,11 @@ dependency. **Suggest: shell out initially, revisit only if it becomes a bottlen
 **Suggest: start at 10, then let the measured validator failure rate tune it — it's an
 empirical question, not a design one.**
 
-### Q7 — Repo visibility
-Created **private** by default. Fan-TL tooling with an unfinished design; nothing here needs
-to be public yet. `gh repo edit --visibility public` when and if that changes.
+### ~~Q7 — Repo visibility~~ ✅ **Answered 2026-08-23 — public**
+Consistent with `fukidashi` and `yohaku`. Two standing consequences:
+- **The design docs are the public face of the project.** They describe patch-only tooling
+  (hard rule 4) and contain no game assets. Keep it that way — the `.gitignore` blocks
+  archive and media extensions deliberately, so don't relax it.
+- **CLAUDE.md and `docs/04-llm.md` reference this specific machine** (WSL paths, GPU
+  hang/TDR history, browser VRAM usage). Harmless, and load-bearing for the throughput
+  numbers, but it's now public — genericise it if that ever stops being wanted.

@@ -116,6 +116,43 @@ These are gates, not preferences. Violating one is a bug even if the output look
   be loaded as a webfont so `canvas.measureText` previews overflow exactly. The CLI is the
   real engine; the web UI drives it.
 
+## Token-efficient C# (conventions)
+
+C# source costs more tokens to read and edit than Python — **measured on a representative
+validator from this project: 1.95× in a conventional style, 1.46× in a modern one.** Roughly
+half the verbosity gap is style you control, so control it. This matters because session
+token cost is a real budget, not because the runtime cares.
+
+**Write modern C#, always:**
+- file-scoped namespaces and `global using` — never a `namespace { }` block or repeated
+  `using` headers
+- collection expressions (`[.. src.Select(…)]`) over `.ToList()` / `.ToHashSet()` chains
+- primary constructors; `record` for anything that is data
+- expression-bodied members for one-liners
+- `is` / `is not` pattern matching over `==` on enums and null checks
+- target-typed `new()`
+- drop `private` (it's the default) and drop `sealed`/`public` where they carry no meaning
+
+**Structural rules that matter more than syntax:**
+- **Keep files under ~300 lines.** Re-reading a 2,000-line file to change one function is the
+  actual token sink — far larger than the verbosity delta. The ten-project layout exists
+  partly for this.
+- **Never hand-write what the toolchain generates.** `dotnet new`, IDE refactorings, and
+  source generators produce boilerplate that never passes through a model at all. That's the
+  cheapest possible code.
+- **Tests must fail with values, not verdicts.** `expected 0x40 at offset 12, got 0x44` costs
+  one read. `Assert.True failed` costs a debugging session. This is why the round-trip gates
+  emit byte diffs (`docs/10-corpus.md`) — a good failure message *is* a token optimisation.
+- **Don't re-read a file to verify an edit landed.** The edit tooling errors if it didn't.
+
+**Why the language choice does not flip on this** (see D15): the verbosity tax across the
+project's whole life is real but bounded — plausibly high six figures of tokens. Reverse-
+engineering a single non-trivial archive format from scratch costs a comparable amount and
+often fails. GARbro covers hundreds of formats and VNTranslationTools covers reinsertion for
+~15 engines, both in .NET. Avoiding even a handful of format reimplementations pays the
+entire verbosity tax, and static typing on offset math then tips it further — a type error in
+binary parsing surfaces at compile time in C# and at **hour 14 of a translate run** in Python.
+
 ## LLM routing: per-task bindings (load-bearing)
 
 Same rule as Yohaku, same reason. **Every model-using task is independently bound to a

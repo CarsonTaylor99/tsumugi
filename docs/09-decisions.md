@@ -21,6 +21,7 @@
 | D15 | **C# confirmed — but for ecosystem, not speed** (2026-08-23) | The pipeline is ~95% GPU-bound, so "fast and efficient" was never the real argument. GARbro + VNTranslationTools being .NET is; `Span<T>` and single-file publish are the rest. Rust and Python considered and rejected | No |
 | D16 | **Pass-based execution; never escalate models inline** | Two large models can't be co-resident in ~20.4 GB. Inline escalation means ~120 model loads *and* evicts the KV prefix cache each time | No |
 | D17 | **Prefer MoE for `translate`** | Full weights in VRAM, fraction active per token → large-model quality at small-model speed. Exactly the right trade for 3,000 sequential generation calls | Yes |
+| D18 | **Modern C# idioms are mandatory, for token cost** (2026-08-23) | Measured 1.95× Python in conventional style vs 1.46× in modern style on a representative function. Half the verbosity gap is style; session tokens are a real budget | Yes |
 
 ---
 

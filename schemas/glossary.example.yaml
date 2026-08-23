@@ -1,0 +1,35 @@
+# bible/glossary.yaml
+# `enforce: true` means Stage 6 mechanically verifies the term appears in the English
+# whenever the Japanese appears in the source. A glossary that only lives in the prompt
+# is a suggestion; this one is a gate.
+
+- ja: 魔導書
+  en: grimoire
+  kind: item
+  enforce: true
+  notes: never "magic book" or "spellbook"
+
+- ja: 白鷺学園
+  en: Shirasagi Academy
+  kind: place
+  enforce: true
+
+- ja: ルミナ
+  en: Lumina
+  kind: name
+  do_not_translate: true
+  enforce: true
+
+- ja: 黄昏の刻
+  en: the Gloaming
+  kind: term
+  enforce: true
+  spoiler_gate: sc_0512
+  notes: >
+    Invented term. Literally "hour of twilight" but it is a proper noun in-world;
+    do not render literally.
+
+- ja: 生徒会
+  en: student council
+  kind: org
+  enforce: false             # common noun, no risk of drift

@@ -1,0 +1,26 @@
+{
+  "_comment": "Stub. Populated during Phase 1. See README.md in this folder for the evidence schema.",
+  "schema_version": 1,
+  "threshold": 0.6,
+  "engines": [
+    {
+      "id": "renpy",
+      "name": "Ren'Py",
+      "evidence": [
+        { "kind": "file", "value": "*.rpa", "weight": 3 },
+        { "kind": "dir", "value": "renpy", "weight": 5 },
+        { "kind": "dir", "value": "game", "weight": 2 },
+        { "kind": "magic", "file": "*.rpa", "value": "RPA-3.0", "weight": 5 }
+      ]
+    },
+    {
+      "id": "kirikiri_z",
+      "name": "KiriKiriZ",
+      "evidence": [
+        { "kind": "file", "value": "data.xp3", "weight": 4 },
+        { "kind": "magic", "file": "data.xp3", "value": "58 50 33 0D 0A 20 0A 1A", "weight": 5 },
+        { "kind": "exe_string", "value": "TVP(KIRIKIRI)", "weight": 5 }
+      ]
+    }
+  ]
+}

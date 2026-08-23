@@ -1,0 +1,30 @@
+# bible/cast/<id>.yaml — one file per character.
+# `pronouns`, `first_person`, and `register` do the real work: they are what the
+# translate prompt uses to keep a character sounding like themselves.
+
+id: kagurazaka_himeko
+name_ja: 神楽坂 姫子
+reading: かぐらざか ひめこ
+name_en: Himeko Kagurazaka
+role: heroine                # protagonist | heroine | supporting | narrator | system
+
+aliases_ja:                  # every nametag string that resolves to this character
+  - 姫子
+  - 神楽坂さん
+  - "???"                    # pre-reveal nametag — see spoiler_gate
+
+pronouns: she/her
+first_person: わたし          # 俺 / 僕 / 私 / わたくし / あたし / 儂 — drives EN register
+register: >
+  Polite and warm. Deflects seriousness with humour. Never swears.
+verbal_tics:
+  - trails off when embarrassed
+  - starts sentences with "あの……" when nervous
+speech_notes: >
+  Uses ~ですね softeners constantly. Render as English hedges ("I think", "maybe",
+  "…right?") rather than as dropped politeness — she is not formal, she is careful.
+
+voice_prefix: [HMK]          # from Stage 3 voice-filename clustering
+spoiler_gate: sc_0412        # entry is withheld from prompts before this scene
+first_appearance: sc_0007
+confidence: 0.86             # from the reduce pass; low values surface at the gate

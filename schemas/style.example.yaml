@@ -1,0 +1,35 @@
+# style.yaml — one policy set for the whole project.
+# These are the decisions that are painful to change after 30,000 lines.
+# Presented at the bible-approval gate with a rendered before/after sample.
+
+honorifics: keep            # keep | drop | selective
+  # keep      -> "Himeko-senpai", "Kagurazaka-san"
+  # drop      -> "Himeko", and terms_of_address below fills the gap
+  # selective -> keep only those in `honorifics_keep`
+honorifics_keep: []          # used only when honorifics: selective
+
+name_order: japanese         # japanese (Family Given) | western (Given Family)
+
+terms_of_address:            # how relational address renders when honorifics are dropped
+  先輩: senpai
+  後輩: ""                   # empty = omit, rephrase around it
+  先生: Sensei
+  お兄ちゃん: big brother
+  お姉ちゃん: sis
+
+quotes: curly                # curly | straight
+ellipsis: "…"                # single glyph; JP "……" collapses to one
+dash: em                     # em | en
+oxford_comma: true
+narration_tense: past        # past | present
+profanity_register: match    # match | soften | intensify
+
+sfx_policy: translate        # translate | romanise | leave
+  # applies to onomatopoeia appearing in narration text, not audio
+
+ruby_policy: drop_phonetic   # drop_phonetic | always_keep | parenthetical
+  # drop_phonetic: plain furigana is dropped; a *gimmick* ruby (reading that is
+  # not a phonetic match for the base) is flagged for human decision instead.
+
+untranslated_allowlist:      # source strings deliberately left in Japanese
+  - 完

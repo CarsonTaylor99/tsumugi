@@ -1,0 +1,42 @@
+# .NET
+bin/
+obj/
+*.user
+*.suo
+.vs/
+global.json.local
+
+# Tsumugi project data — never commit game content
+workspace/
+projects/
+*.tsumugi
+*.tsumugi-shm
+*.tsumugi-wal
+extracted/
+patches/
+cache/
+llm-cache/
+
+# Game assets must never enter the repo (hard rule 4)
+*.xp3
+*.rpa
+*.arc
+*.pfs
+*.int
+*.pck
+*.dat
+*.assets
+*.ogg
+*.wav
+*.png
+*.jpg
+*.webp
+
+# Local config / secrets
+.env
+appsettings.Local.json
+bindings.local.json
+
+# OS
+Thumbs.db
+.DS_Store

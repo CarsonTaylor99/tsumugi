@@ -1,0 +1,36 @@
+# <project>.yaml — per-game configuration. Sits beside the SQLite project store.
+
+game:
+  title_ja: 白鷺学園の黄昏
+  title_en: Twilight at Shirasagi Academy
+  install_dir: "D:/Games/Shirasagi"      # read-only to Tsumugi, always
+  engine: kirikiri_z
+  version_hashes:                        # patch refuses to apply to a different build
+    data.xp3: "sha256:…"
+    game.exe: "sha256:…"
+
+text:
+  source_encoding: shift_jis
+  target_encoding: utf8_via_proxy        # utf8_native | utf8_via_proxy | sjis_glyph_hack | fullwidth
+  linebreak_code: "[r]"
+  max_lines: 3
+  textbox: { x: 96, y: 452, w: 1088, h: 168, font: "MS Gothic", size: 26, line_height: 34 }
+  # textbox is normally produced by the calibration tool, not hand-written
+
+# Per-task model bindings. No stage hardcodes a model. See docs/04-llm.md.
+bindings:
+  bible.map:    { provider: ollama, model: "<mid-size>",   num_ctx: 16384, temperature: 0.2 }
+  bible.reduce: { provider: ollama, model: "<largest>",    num_ctx: 16384, temperature: 0.3 }
+  translate:    { provider: ollama, model: "<benched>",    num_ctx: 8192,  temperature: 0.7 }
+  judge:        { provider: ollama, model: "<mid-size>",   num_ctx: 8192,  temperature: 0.0 }
+  retry:        { provider: ollama, model: "<largest>",    num_ctx: 16384, temperature: 0.8 }
+  # Model names are deliberately placeholders — pick them from the Phase 4 bench set,
+  # not from whatever happens to be loaded.
+
+run:
+  chunk_size: 10                 # units per translate call; tune from validator failure rate
+  rolling_context_units: 8       # previous units carried forward (source + approved EN)
+  parallel_slots: 2              # llama.cpp -np; costs KV VRAM per slot
+  max_hours: 10                  # unattended run cap
+  checkpoint_every: 1            # chunks — this box takes TDRs
+  vram_ladder: [16384, 12288, 8192]

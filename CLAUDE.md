@@ -7,6 +7,9 @@ it produces a fully translated, playable English **patch**. Deterministic work (
 unpacking, script parsing, text reinsertion, font metrics, patch building) is C#. The
 language work (story bible, translation, QA judging) runs on **local LLMs**.
 
+It is a **generic tool** — there is no single target game — so the engine abstraction is
+load-bearing rather than aspirational. See hard rule 8 and `docs/10-corpus.md`.
+
 This is a **personal-use tool** for fan translation. It processes copyrighted game text on
 the user's own machine. See "Hard rule 4" — the tool never redistributes game assets.
 
@@ -38,11 +41,16 @@ These are gates, not preferences. Violating one is a bug even if the output look
    parsed by deterministic C#. An LLM guessing at binary offsets produces silent
    corruption. The only sanctioned LLM use near formats is *dev-time assistance* while
    reverse-engineering a new one (reading hexdumps with a human), never in the pipeline.
-2. **Round-trip identity gate.** For every engine adapter: extract → reinject *unchanged*
-   must produce a **byte-identical** file. If it doesn't, the writer is wrong and no
-   translated build may be produced for that engine. This test runs in CI against a
-   corpus. It is the single highest-value safety net in the project — build it in Phase 1,
-   before any LLM code exists.
+2. **Two round-trip gates, both required.** For every engine adapter:
+   - **Gate A — identity.** Extract → reinject *unchanged* → **byte-identical** file.
+   - **Gate B — expansion.** Extract → reinject text ~2× longer → the file still parses,
+     the archive still loads, the game still boots.
+
+   Gate A alone is not enough and is easy to be fooled by: nothing moves, so every offset
+   in the file is still correct by accident. Gate B is what proves offset fixup and
+   string-table rebuilding — the class of bug that silently corrupts bytecode engines. No
+   translated build may be produced for an engine failing either gate. Build both in
+   Phase 1, before any LLM code exists. See `docs/10-corpus.md`.
 3. **Placeholder contract.** Engine control codes are masked to sentinels before the model
    sees them and validated on the way back. A response that violates the contract is
    rejected and retried — never patched up by hand-waving. See `docs/05-qa.md`.
@@ -57,6 +65,11 @@ These are gates, not preferences. Violating one is a bug even if the output look
    silently re-translated by a later run. Re-runs touch only `machine` status lines.
 7. **Nothing is destructive.** The game directory is read-only to Tsumugi. All output goes
    to the project folder. The installer backs up before it writes.
+8. **No engine branching outside `Tsumugi.Formats/`.** No `if (engine == …)` anywhere else,
+   ever. Anything a later stage needs to know about an engine is exposed through
+   `EngineTextCaps`. This is the rule that keeps a *generic* tool generic: the moment
+   Stage 5 or Stage 7 knows what KiriKiri is, the abstraction is dead and every new engine
+   becomes a cross-cutting change.
 
 ## Stack
 
@@ -168,8 +181,9 @@ tests/                   round-trip corpus, validator unit tests
 - **Phase 4 — Translation.** Chunked context windows, placeholder validation, resume.
 - **Phase 5 — Fit + preview.** Font metrics, reflow, encoding/font hacks, in-situ preview.
 - **Phase 6 — Patch build + installer.**
-- **Phase 7 — Second engine adapter** (proves the abstraction is real) and the **Fukidashi
-  bridge** for text baked into CG/UI images.
+- **Phase 7 — One adapter per engine family** (text-script → archive+script → bytecode →
+  managed runtime). Family coverage, not engine count, is what proves the abstraction.
+  Then the **Fukidashi bridge** for text baked into CG/UI images.
 
 See `docs/08-roadmap.md` for acceptance criteria per phase.
 

@@ -14,16 +14,21 @@ answered or explicitly deferred.
 ---
 
 ### Phase 1 — Walking skeleton
-One engine. Unpack → extract → reinject. **No LLM code at all.**
+One engine (**Ren'Py** — text scripts, engine-native translation support, a day's work).
+Unpack → extract → reinject. **No LLM code at all.**
 
 - .NET SDK installed (currently missing — see `CLAUDE.md`)
 - Solution skeleton per the planned layout
 - `IEngineAdapter` + one implementation
-- Round-trip identity test harness + CI
+- **Both round-trip gates** + CI: Gate A (identity) and Gate B (expansion)
+- **Tier 0 synthetic fixtures** — hand-authored minimal scripts covering every control code
+  the adapter claims to support. These are committable and unblock adapter work without any
+  real game present (`docs/10-corpus.md`)
+- Corpus manifest + harness (the manifest is committed; game files never are)
 
-**Done when:** for every script in a real game, extract→reinject-unchanged produces a
-**byte-identical** file, and the rebuilt game **boots and plays**. Hard rule 2. Everything
-downstream is built on this being true; nothing else may start until it is.
+**Done when:** Gate A produces byte-identical files for every script, Gate B survives ~2×
+expansion with the game still booting, and both run in CI against Tier 0. Hard rule 2.
+Everything downstream is built on this being true; nothing else may start until it is.
 
 ---
 
@@ -70,14 +75,27 @@ English start to finish, and uninstall restores the original byte-for-byte.
 
 ---
 
-### Phase 7 — Second adapter and the Fukidashi bridge
-A second engine — ideally one from a different family (text-script vs bytecode) — to prove
-the abstraction is real rather than one engine wearing an interface. Then image-baked text
-via Fukidashi.
+### Phase 7 — Engine families, then the Fukidashi bridge
+Because there is no single target game, this phase *is* the product. Supporting fifteen
+engines from one family proves less than one from each of four. Ladder, in this order —
+each rung is chosen for what it teaches, not for coverage:
 
-**Done when:** the second engine reaches Phase 6 quality **without changes outside its own
-adapter folder**. If that's not true, the abstraction was wrong and this is when you find
-out cheaply.
+| # | Family | Representative | What it proves |
+|---|---|---|---|
+| 1 | Text script, loose files | Ren'Py *(Phase 1)* | The pipeline end to end |
+| 2 | Archive + text script | KiriKiri | Container repack, SJIS/font handling, loose-file patching |
+| 3 | **Compiled bytecode** | Majiro or BGI/Ethornell | **String-table rebuild and offset fixup — the real test** |
+| 4 | Managed runtime | Unity | Injection via resource redirection |
+
+Rung 3 is the one that matters. It's where a text-script-shaped abstraction breaks, and
+where Gate B stops being theoretical. Get there sooner rather than later — discovering the
+seam is wrong after four text-script engines is the expensive version.
+
+Then image-baked text via the Fukidashi bridge.
+
+**Done when:** each new family reaches Phase 6 quality **without changes outside its own
+adapter folder** (hard rule 8). If that's not true, the abstraction was wrong and this is
+where you find out cheaply.
 
 ---
 
@@ -91,3 +109,9 @@ out cheaply.
   saves a 20-hour run on the wrong model.
 - **Phase 7 is a design test, not a feature.** Its real output is the answer to "is
   `IEngineAdapter` the right seam?"
+- **With no target game, breadth is the deliverable** — but breadth *within* a family is
+  cheap incremental work, and breadth *across* families is where the risk lives. Order the
+  ladder by risk, not by how many games each engine unlocks.
+- **Tier 0 synthetic fixtures mean adapter development is never blocked** on finding a free
+  game in that engine. Build the fixtures first for each new adapter; a real title is only
+  needed for the integration test.

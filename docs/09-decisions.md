@@ -16,16 +16,26 @@
 | D10 | **Patch-only distribution, never assets** | Hard rule 4 | No |
 | D11 | **Bible requires human approval before translation** | Names and honorific policy are irreversible after 30k lines | No |
 | D12 | Project name **Tsumugi (紡ぎ)** — "spinning thread / weaving" | Fits the Fukidashi / Yohaku naming; describes the pipeline | Trivially — `gh repo rename` |
+| D13 | **Generic tool, no single target game** (2026-08-23) | User's call. Makes the engine abstraction the product rather than a convenience, and promotes hard rule 8 and the family ladder to load-bearing | No |
+| D14 | **Two round-trip gates: identity *and* expansion** | Identity alone moves nothing, so every offset stays correct by accident. Expansion is what proves offset fixup — the bug class that matters most as engine coverage widens | No |
 
 ---
 
 ## Open questions
 
-### Q1 — What is the first real target game and engine? ⬅ **blocking Phase 1's second half**
-The walking skeleton should be Ren'Py regardless (it's a day's work and proves the pipeline).
-But the *first real target* determines adapter difficulty, whether bytecode rewriting is on
-the Phase 6 critical path, and whether font hacking is needed at all. A KiriKiri title and a
-Siglus title are months apart in effort. **Needs an answer before Phase 3.**
+### ~~Q1 — What is the first real target game and engine?~~ ✅ **Answered 2026-08-23**
+**Generic tool, no specific game** → D13. Consequences, all now baked into the docs:
+bytecode rewriting and font hacking are both on the critical path (nothing is ruled out by
+picking an easy title); hard rule 8 forbids engine branching outside `Tsumugi.Formats/`; and
+Phase 7 becomes a **family ladder** rather than "a second adapter."
+
+### Q1b — Which titles seed the Tier 1 corpus? ⬅ **now the practical blocker**
+Generic means CI needs real files, and game assets can't be committed (hard rule 4).
+Tier 0 synthetic fixtures cover adapter development, but Gate B's "the game still boots"
+needs actual games. Needs: a shortlist of freely-redistributable or freely-downloadable
+titles per engine family, each with its license individually **verified, not assumed**.
+Ren'Py is easy (open demo projects ship with the SDK); the bytecode engines are the hard
+ones and may end up Tier 3 (user-owned, local-only, never in CI). See `docs/10-corpus.md`.
 
 ### Q2 — .NET SDK version
 No SDK is installed on this machine at all (runtimes 3.1/6.0/8.0 only). Install the current

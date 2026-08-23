@@ -8,6 +8,8 @@ playable English patch.
 Deterministic work (archive unpacking, script parsing, text reinsertion, font metrics, patch
 building) is C#. The language work (story bible, translation, QA) runs on **local LLMs**.
 
+It's a **generic** tool — engine support is a plug-in surface, not a hardcoded target.
+
 ## Why not a real-time translator
 
 Hooked live MTL has no context, no consistency, no line fitting, adds latency to every line,
@@ -37,6 +39,7 @@ detect → unpack → extract → analyse → bible → [YOU REVIEW] → transla
 | [`docs/07-ux.md`](docs/07-ux.md) | The workbench and the run experience |
 | [`docs/08-roadmap.md`](docs/08-roadmap.md) | Phases and acceptance criteria |
 | [`docs/09-decisions.md`](docs/09-decisions.md) | Decisions made, questions open |
+| [`docs/10-corpus.md`](docs/10-corpus.md) | Test corpus tiers and the two round-trip gates |
 
 ## Scope
 

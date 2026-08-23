@@ -25,6 +25,41 @@
 
 ---
 
+## Language token-density measurement (2026-08-23)
+
+Same function (placeholder validator) implemented in six languages, so D15/D18 are not
+re-litigated from intuition in a future session:
+
+| Language | Lines | ~Tokens | vs Python |
+|---|---|---|---|
+| Python | 12 | 145 | 1.00× |
+| TypeScript | 11 | 167 | 1.16× |
+| **F#** | **11** | 181 | **1.25×** |
+| C# (modern idioms) | 15 | 211 | 1.46× |
+| Go | **46** | 247 | 1.71× |
+| C# (conventional) | 25 | 282 | 1.95× |
+
+Three findings worth keeping:
+- **Python is near the floor but the margin is small.** TypeScript and F# are within 25%.
+- **Go is a trap.** Minimal syntax reads as terse, but no collection operators and explicit
+  everything gives 46 lines against Python's 12 — nearly 4× the line count, 1.71× the tokens.
+  Do not reach for Go on a "it's simple so it must be compact" intuition.
+- **F# is the genuinely interesting option**: near-Python density, *fewest lines of any
+  language tested*, fully static typing, and it is **.NET** — so the D15 ecosystem argument
+  (GARbro, VNTranslationTools, SkiaSharp, ASP.NET Core) survives completely intact. Its
+  discriminated unions are close to ideal for the placeholder-kind and engine-variant models,
+  with exhaustiveness checking that a C# enum cannot give.
+
+**Why C# stays the default anyway:** model fluency. There is far more C# than F# in training
+data, and if generated F# needs more iterations to get right, that swamps a 1.17× density
+edge — iteration count dominates session token cost, not source size. Imperative byte-offset
+parsing is also more natural in C#.
+
+**Cheap way to test that claim:** implement `Tsumugi.Qa` in F#. It is pure functions over
+data, discriminated unions fit the validator model, and it touches no binary parsing. Same
+solution, native interop, no IPC boundary, no duplicated domain model — so unlike a
+Python split, it costs nothing structurally if it works and is trivial to revert if not.
+
 ## Open questions
 
 ### ~~Q1 — What is the first real target game and engine?~~ ✅ **Answered 2026-08-23**

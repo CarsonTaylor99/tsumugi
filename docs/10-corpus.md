@@ -87,7 +87,7 @@ it as a dated manual result rather than pretending CI covers it.
 ## Coverage target: families, not engine count
 
 Supporting fifteen engines from one family proves less than supporting one from each of four.
-The core is generic when it survives all four **without changes outside `Tsumugi.Formats/`**:
+The core is generic when it survives all four **without changes outside `tsumugi/formats/`**:
 
 | Family | Characteristic | Representative |
 |---|---|---|

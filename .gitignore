@@ -1,10 +1,14 @@
-# .NET
-bin/
-obj/
-*.user
-*.suo
-.vs/
-global.json.local
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+dist/
+build/
+*.egg-info/
 
 # Tsumugi project data — never commit game content
 workspace/
@@ -34,7 +38,6 @@ llm-cache/
 
 # Local config / secrets
 .env
-appsettings.Local.json
 bindings.local.json
 
 # OS

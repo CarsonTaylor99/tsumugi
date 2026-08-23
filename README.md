@@ -6,7 +6,7 @@ playable English patch.
 **Status: Phase 0 — design only. No code yet.**
 
 Deterministic work (archive unpacking, script parsing, text reinsertion, font metrics, patch
-building) is C#. The language work (story bible, translation, QA) runs on **local LLMs**.
+building) is **Python**. The language work (story bible, translation, QA) runs on **local LLMs**.
 
 It's a **generic** tool — engine support is a plug-in surface, not a hardcoded target.
 
@@ -21,7 +21,7 @@ play time there is no model in the loop — the game is just in English.
 
 ```
 detect → unpack → extract → analyse → bible → [YOU REVIEW] → translate → QA → fit → patch
-  C#       C#        C#        C#       LLM                      LLM      C#+LLM  C#    C#
+  py       py        py        py       LLM                      LLM      py+LLM  py    py
 ```
 
 ## Docs

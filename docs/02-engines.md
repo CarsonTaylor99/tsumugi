@@ -5,16 +5,21 @@
 One interface, one folder per engine. Everything engine-specific lives behind it; no other
 project may branch on engine type.
 
-```csharp
-interface IEngineAdapter {
-    EngineProbe   Probe(string gameDir);              // confidence + evidence
-    IEnumerable<TextUnit> Extract(Workspace ws);      // scripts -> units + placeholders
-    ScriptGraph   BuildGraph(Workspace ws);           // labels, jumps, choices, scenes
-    void          Inject(Workspace ws, IEnumerable<TextUnit> units);
-    RoundTripResult VerifyRoundTrip(Workspace ws);    // hard rule 2 — byte-identical
-    EngineTextCaps Caps { get; }                      // encoding, break code, ruby, font
-}
+```python
+class EngineAdapter(Protocol):
+    caps: EngineTextCaps                                   # encoding, break code, ruby, font
+
+    def probe(self, game_dir: Path) -> EngineProbe: ...    # confidence + evidence
+    def extract(self, ws: Workspace) -> Iterator[TextUnit]: ...   # units + placeholders
+    def build_graph(self, ws: Workspace) -> ScriptGraph: ...      # labels, jumps, choices
+    def inject(self, ws: Workspace, units: Iterable[TextUnit]) -> None: ...
+    def verify_round_trip(self, ws: Workspace) -> RoundTripResult: ...   # hard rule 2
 ```
+
+A `Protocol`, not an ABC: structural typing keeps adapters decoupled from the core, and
+`pyright --strict` still verifies conformance at check time. Every model in the signatures
+above is a `pydantic` model, so the same definitions produce the JSON Schema used for
+constrained decoding downstream.
 
 `EngineTextCaps` is what Stages 5–7 need to know without caring which engine it is:
 source encoding, whether the engine can render UTF-8 or needs an SJIS workaround, the
@@ -49,10 +54,11 @@ this; do not assume an adapter is a weekend.
 **Verify every license before vendoring any of this. Treat the notes below as leads to
 confirm, not as established fact.**
 
-- **GARbro** (morkt) — C#/.NET, WPF. Reads several hundred VN archive formats. Extraction is
+- **GARbro** (morkt) — C#/.NET, WPF. Reads several hundred VN archive formats. Invoked as a
+  CLI subprocess (we are Python; see D19). Extraction is
   its strength; creation is spotty. *Use as:* the Stage 1 fallback for containers we haven't
   written. Shell out to its CLI rather than vendoring, at least initially.
-- **VNTranslationTools / VNTextPatch** (arcusmaximus) — C#. The closest existing thing to
+- **VNTranslationTools / VNTextPatch** (arcusmaximus) — C#, invoked as a CLI. The closest existing thing to
   Stage 2/8: extracts script text to xlsx/json and reinserts it, across a good spread of the
   engines above. Also ships **VNTextProxy**, a DLL shim that forces proportional fonts and
   non-Shift-JIS characters into engines that can't do either. *Use as:* the reference
@@ -61,8 +67,9 @@ confirm, not as established fact.**
 - **XUnity.AutoTranslator** (bbepis) — for Unity titles, its resource redirector can consume
   a pre-built translation file. *Use as:* the Unity injection backend. Its live-translation
   mode is out of scope; the redirector is not.
-- **Ren'Py SDK** — `translate` framework, `unrpa`, `unrpyc`. Ren'Py injection should use the
-  engine's own translation system, not text surgery.
+- **Ren'Py SDK** — `translate` framework, `unrpa`, `unrpyc`. **All Python**, so these import
+  directly rather than being shelled out — a concrete benefit of D19 for the Phase 1 walking
+  skeleton. Ren'Py injection should use the engine's own translation system, not text surgery.
 - **HDiffPatch / xdelta3** — binary diff for patch distribution.
 
 ### Interop rule

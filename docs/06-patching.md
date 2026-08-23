@@ -47,7 +47,7 @@ than a character-count guess.
 
 ## Measuring and reflowing
 
-- Measure with **real glyph advances** (SkiaSharp / HarfBuzzSharp) using **the game's own
+- Measure with **real glyph advances** (`fonttools` + `uharfbuzz`) using **the game's own
   font at the game's own size**. Character counts are a lie: `Wimbledon` and `illicit` are
   the same length and nowhere near the same width.
 - Break greedily to the measured width, insert the **engine's** break code, respect

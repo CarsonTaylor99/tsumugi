@@ -7,7 +7,7 @@ re-runnable; nothing recomputes what a later stage already locked.
 
 ## Stage 0 — Detect
 
-**In:** a game install directory. **Out:** `{engine, confidence, evidence[]}`.
+**In:** a game install directory. **Out:** `EngineProbe(engine, confidence, evidence)`.
 
 Fingerprint by file signatures, not guesswork: archive magic bytes (`XP3\r\n`, `RPA-3.0`,
 `PFS`, `.int`), executable imports and version strings, telltale filenames
@@ -82,7 +82,7 @@ Fukidashi.
    voice sets, and mapping prefix→character is a one-time human confirmation of ~10 items.
    Track that a nametag may be a *variable* (`???` before a reveal) and never bake a name
    into a line where the engine expects the placeholder.
-4. **Term mining.** Morphological analysis (NMeCab) → proper nouns, unknown-word candidates,
+4. **Term mining.** Morphological analysis (`fugashi` / `SudachiPy`) → proper nouns, unknown-word candidates,
    high-frequency compounds. Rank by frequency × unknown-ness. This is the raw material for the
    glossary and it costs no GPU time.
 5. **Duplicate detection.** Hash source text. VNs repeat lines heavily across routes;
@@ -149,7 +149,7 @@ duplicate-line divergence.
 **In:** validated English. **Out:** English with engine line-break codes inserted, guaranteed
 to fit the box.
 
-Real glyph advances via SkiaSharp using **the game's own font at the game's own size**, and
+Real glyph advances via `fonttools` + `uharfbuzz` using **the game's own font at the game's own size**, and
 the game's own textbox geometry. Break with the engine's break code, respecting no-break
 rules. Lines that cannot fit even when broken go back to Stage 5 with a "tighten to N
 characters" instruction rather than being clipped. Details: `docs/06-patching.md`.

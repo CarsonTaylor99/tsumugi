@@ -5,9 +5,9 @@
 | # | Decision | Rationale | Reversible? |
 |---|---|---|---|
 | D1 | **Offline whole-game translation, not live hooking** | Context, consistency, line fitting, coverage of menus/UI, no latency in the read loop | No — it's the thesis |
-| D2 | **LLMs never parse game formats** | Silent corruption; formats are deterministic and belong in C# | No |
+| D2 | **LLMs never parse game formats** | Silent corruption; formats are deterministic and belong in ordinary deterministic code | No |
 | D3 | **Byte-identical round-trip gate per adapter** | The only cheap defence against a broken writer | No |
-| D4 | **ASP.NET Core + browser workbench**, CLI is the engine | Dense bilingual tables, inline editing, and font-accurate `canvas.measureText` preview are web strengths; matches existing muscle memory from WhatNotNow/Fukidashi/Yohaku | Yes, with cost |
+| D4 | **Local web workbench (FastAPI), CLI is the engine** | Dense bilingual tables, inline editing, and font-accurate `canvas.measureText` preview are web strengths; matches WhatNotNow/Fukidashi/Yohaku exactly | Yes, with cost |
 | D5 | **SQLite project store; translations keyed by `SourceHash`** | Re-extracting after an adapter fix must not lose work | Yes |
 | D6 | **Per-task LLM bindings**, no global provider switch | Same reason as Yohaku: rebind one task when a better model ships | Yes |
 | D7 | **Chunked translation (5–15 units) with rolling context**, not per-line | ~3× throughput *and* better coherence — the rare case where both improve together | Yes (it's a config knob) |
@@ -18,10 +18,12 @@
 | D12 | Project name **Tsumugi (紡ぎ)** — "spinning thread / weaving" | Fits the Fukidashi / Yohaku naming; describes the pipeline | Trivially — `gh repo rename` |
 | D13 | **Generic tool, no single target game** (2026-08-23) | User's call. Makes the engine abstraction the product rather than a convenience, and promotes hard rule 8 and the family ladder to load-bearing | No |
 | D14 | **Two round-trip gates: identity *and* expansion** | Identity alone moves nothing, so every offset stays correct by accident. Expansion is what proves offset fixup — the bug class that matters most as engine coverage widens | No |
-| D15 | **C# confirmed — but for ecosystem, not speed** (2026-08-23) | The pipeline is ~95% GPU-bound, so "fast and efficient" was never the real argument. GARbro + VNTranslationTools being .NET is; `Span<T>` and single-file publish are the rest. Rust and Python considered and rejected | No |
+| ~~D15~~ | ~~C# confirmed for ecosystem, not speed~~ — **superseded by D19** | The ecosystem argument was overstated: `docs/02-engines.md` Q5 already chose to *shell out* to GARbro/VNTextPatch rather than vendor them, and shelling out works identically from Python | — |
 | D16 | **Pass-based execution; never escalate models inline** | Two large models can't be co-resident in ~20.4 GB. Inline escalation means ~120 model loads *and* evicts the KV prefix cache each time | No |
 | D17 | **Prefer MoE for `translate`** | Full weights in VRAM, fraction active per token → large-model quality at small-model speed. Exactly the right trade for 3,000 sequential generation calls | Yes |
-| D18 | **Modern C# idioms are mandatory, for token cost** (2026-08-23) | Measured 1.95× Python in conventional style vs 1.46× in modern style on a representative function. Half the verbosity gap is style; session tokens are a real budget | Yes |
+| ~~D18~~ | ~~Modern C# idioms mandatory~~ — **superseded by D19** | Measurement retained below; the conclusion changed | — |
+| D19 | **Python 3.12+, not C#** (2026-08-23) | User's call, on session token cost. Measured 1.46× fewer tokens than modern C#; direct reuse of Fukidashi/Yohaku; Ren'Py tooling is Python; the Fukidashi bridge becomes an import rather than IPC. Runtime speed is a non-issue at ~95% GPU-bound | Yes, with cost |
+| D20 | **`pyright --strict` is a hard rule (9), not a style choice** | It is the only mechanical replacement for the compiler C# would have provided on offset arithmetic, where errors are silent rather than raising | No |
 
 ---
 
@@ -50,15 +52,33 @@ Three findings worth keeping:
   discriminated unions are close to ideal for the placeholder-kind and engine-variant models,
   with exhaustiveness checking that a C# enum cannot give.
 
-**Why C# stays the default anyway:** model fluency. There is far more C# than F# in training
-data, and if generated F# needs more iterations to get right, that swamps a 1.17× density
-edge — iteration count dominates session token cost, not source size. Imperative byte-offset
-parsing is also more natural in C#.
+**Outcome (D19): Python.** The measurement above was the deciding input, together with three
+things that only became clear on re-examination:
+- The **ecosystem argument was overstated.** Q5 had already chosen to shell out to
+  GARbro/VNTextPatch rather than vendor them, and a subprocess call is language-agnostic.
+- **Ren'Py's toolchain is Python** (`unrpa`, `unrpyc`, Ren'Py itself), so the Phase 1 walking
+  skeleton gets *easier*, not harder.
+- **The tool is never distributed** — only the patch is. Single-binary packaging, one of C#'s
+  real advantages, turned out not to matter for a local single-user authoring tool.
 
-**Cheap way to test that claim:** implement `Tsumugi.Qa` in F#. It is pure functions over
-data, discriminated unions fit the validator model, and it touches no binary parsing. Same
-solution, native interop, no IPC boundary, no duplicated domain model — so unlike a
-Python split, it costs nothing structurally if it works and is trivial to revert if not.
+**F# remains the road not taken.** It measured 1.25× with the fewest lines of anything
+tested, is fully typed, and would have kept the .NET ecosystem. It lost on model fluency:
+far less F# in training data, and extra iterations would swamp a density edge, since
+iteration count dominates session cost. Recorded here so it isn't rediscovered from scratch.
+
+**What Python gives up, and what replaces it** — the honest ledger:
+
+| Lost with C# | Replacement |
+|---|---|
+| Compiler catching offset-math errors | `pyright --strict` in CI (hard rule 9) + both round-trip gates carrying more weight |
+| `Span<T>` zero-copy binary parsing | `construct` (bidirectional, so one definition serves parse *and* build → Gate A), `memoryview`, `mmap` |
+| Vendoring GARbro / VNTextPatch source | Shell out to their CLIs — already the plan (Q5); `pythonnet` as an unused fallback |
+| Fast bulk byte work | `hashlib`, `mmap`, `numpy` on those paths only |
+| Single-file `.exe` distribution | Irrelevant: the tool stays local, only the patch ships |
+
+And what it gains: Fukidashi/Yohaku code reuse, `hypothesis` for the corpus mutation fuzzing,
+`pydantic` as one definition serving type + JSON Schema + validation, and the Phase 7
+Fukidashi bridge collapsing from an IPC boundary to an import.
 
 ## Open questions
 
@@ -76,10 +96,10 @@ titles per engine family, each with its license individually **verified, not ass
 Ren'Py is easy (open demo projects ship with the SDK); the bytecode engines are the hard
 ones and may end up Tier 3 (user-owned, local-only, never in CI). See `docs/10-corpus.md`.
 
-### Q2 — .NET SDK version
-No SDK is installed on this machine at all (runtimes 3.1/6.0/8.0 only). Install the current
-LTS. Confirm the actual version with `dotnet --list-sdks` after install and pin it in
-`global.json` — don't take a version number in a doc on faith.
+### Q2 — Python version and toolchain
+Target 3.12+. Pin the exact version in `.python-version` and manage the environment with
+`uv`. Confirm what's actually installed rather than trusting a doc — and note that the
+Windows-side tooling matters here too, since the games and the proxy DLL are Windows.
 
 ### Q3 — llama.cpp server or Ollama as the primary runtime?
 Ollama is what's already running on this box and what Fukidashi/Yohaku use. llama.cpp's

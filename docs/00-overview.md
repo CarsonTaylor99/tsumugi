@@ -24,14 +24,16 @@ Three things changed that make this viable now:
 2. **Time is free when it's offline.** A live translator has a 2-second budget per line. An
    offline one has 20 hours for the whole game. That is roughly a 10,000× compute budget
    per line, and it buys context windows, retries, validation, and a QA judge pass.
-3. **The deterministic half is a solved problem in C#.** GARbro and VNTextPatch already
-   encode years of format reverse-engineering, both in .NET.
+3. **The deterministic half is largely already solved.** GARbro and VNTextPatch encode
+   years of format reverse-engineering; both are .NET, and both expose CLIs we shell out to
+   rather than reimplement. Ren'Py's own tooling (`unrpa`, `unrpyc`) is Python and imports
+   directly.
 
 ## The shape that falls out
 
 Everything hard splits cleanly into two buckets:
 
-**Deterministic (C#) — must be exactly right, cheap to run.**
+**Deterministic (Python) — must be exactly right, cheap to run.**
 Archives, script parsing, control codes, reading-order graph, font metrics, line breaking,
 reinjection, patching. These are correctness problems. A model here is a liability.
 

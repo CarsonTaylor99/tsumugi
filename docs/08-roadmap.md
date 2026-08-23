@@ -17,9 +17,9 @@ answered or explicitly deferred.
 One engine (**Ren'Py** — text scripts, engine-native translation support, a day's work).
 Unpack → extract → reinject. **No LLM code at all.**
 
-- .NET SDK installed (currently missing — see `CLAUDE.md`)
-- Solution skeleton per the planned layout
-- `IEngineAdapter` + one implementation
+- Python 3.12+ and `uv` environment; `pyright --strict` wired into CI (hard rule 9)
+- Package skeleton per the planned layout
+- `EngineAdapter` protocol + one implementation
 - **Both round-trip gates** + CI: Gate A (identity) and Gate B (expansion)
 - **Tier 0 synthetic fixtures** — hand-authored minimal scripts covering every control code
   the adapter claims to support. These are committable and unblock adapter work without any
@@ -33,7 +33,7 @@ Everything downstream is built on this being true; nothing else may start until 
 ---
 
 ### Phase 2 — Project store and read-only workbench
-SQLite project file, `TextUnit` model, ASP.NET host, bilingual table, filters, dedupe.
+SQLite project file, `TextUnit` pydantic model, FastAPI host, bilingual table, filters, dedupe.
 
 **Done when:** you can open a real game and browse all its text in reading order, with
 speakers attributed and duplicate counts shown.
@@ -108,7 +108,7 @@ where you find out cheaply.
 - **The gold bench set (Phase 4) is worth a full day** and pays for itself the first time it
   saves a 20-hour run on the wrong model.
 - **Phase 7 is a design test, not a feature.** Its real output is the answer to "is
-  `IEngineAdapter` the right seam?"
+  `EngineAdapter` the right seam?"
 - **With no target game, breadth is the deliverable** — but breadth *within* a family is
   cheap incremental work, and breadth *across* families is where the risk lives. Order the
   ladder by risk, not by how many games each engine unlocks.

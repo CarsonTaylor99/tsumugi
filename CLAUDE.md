@@ -4,7 +4,7 @@
 
 An **offline visual-novel translation toolchain**. Point it at an installed Japanese VN;
 it produces a fully translated, playable English **patch**. Deterministic work (archive
-unpacking, script parsing, text reinsertion, font metrics, patch building) is C#. The
+unpacking, script parsing, text reinsertion, font metrics, patch building) is Python. The
 language work (story bible, translation, QA judging) runs on **local LLMs**.
 
 It is a **generic tool** — there is no single target game — so the engine abstraction is
@@ -38,7 +38,7 @@ is just in English. Design every decision against that.
 These are gates, not preferences. Violating one is a bug even if the output looks fine.
 
 1. **LLMs never parse game formats.** Archives, script bytecode, and control codes are
-   parsed by deterministic C#. An LLM guessing at binary offsets produces silent
+   parsed by deterministic Python. An LLM guessing at binary offsets produces silent
    corruption. The only sanctioned LLM use near formats is *dev-time assistance* while
    reverse-engineering a new one (reading hexdumps with a human), never in the pipeline.
 2. **Two round-trip gates, both required.** For every engine adapter:
@@ -65,93 +65,81 @@ These are gates, not preferences. Violating one is a bug even if the output look
    silently re-translated by a later run. Re-runs touch only `machine` status lines.
 7. **Nothing is destructive.** The game directory is read-only to Tsumugi. All output goes
    to the project folder. The installer backs up before it writes.
-8. **No engine branching outside `Tsumugi.Formats/`.** No `if (engine == …)` anywhere else,
+8. **No engine branching outside `tsumugi/formats/`.** No `if engine == …` anywhere else,
    ever. Anything a later stage needs to know about an engine is exposed through
    `EngineTextCaps`. This is the rule that keeps a *generic* tool generic: the moment
    Stage 5 or Stage 7 knows what KiriKiri is, the abstraction is dead and every new engine
    becomes a cross-cutting change.
+9. **`pyright --strict` passes, with no `Any` in format or pipeline code.** Enforced in CI.
+   Without a compiler this is the only mechanical defence against offset-math errors, and
+   those errors are silent — they corrupt a save file rather than raising. A `# type: ignore`
+   in `tsumugi/formats/` or `tsumugi/patch/` needs a comment justifying it.
 
 ## Stack
 
-- **C# / .NET, current LTS.** Everything except the models. **Confirmed 2026-08-23 — but
-  not for the reason originally given.** "Fast and efficient" is the wrong justification:
-  this pipeline is ~95% GPU-bound, and parsing a 3 MB script takes milliseconds in any
-  language. C# would never be measurably faster than Go, Rust, or even Python *here*.
-  It is still the right call, for three reasons that actually hold:
-  1. **The entire prior-art ecosystem is .NET.** GARbro (hundreds of VN archive formats)
-     and VNTranslationTools/VNTextPatch (script extract/reinsert across many engines) are
-     both C#. That is years of format reverse-engineering you can read, call, or vendor.
-     In Rust or Go you start from zero. For a *generic* tool (D13) this argument dominates
-     everything else.
-  2. **`Span<T>` / `Memory<T>` make binary parsing genuinely good** — zero-copy slicing
-     with bounds safety. The hot path here is *correctness*, not throughput, and this is
-     where C# is strongest.
-  3. **Single-file self-contained publish / NativeAOT** — ship one `.exe` patcher to
-     Windows users with no runtime install.
+**Python 3.12+.** Everything except the models. Chosen 2026-08-23 over C# (D19) primarily for
+**session token cost** — a representative function measures 1.46× the tokens in modern C# —
+and for direct reuse of the Fukidashi/Yohaku codebases. Runtime speed is a non-issue here:
+this pipeline is ~95% GPU-bound and parsing a 3 MB script takes milliseconds in any language.
 
-  Rust was considered and rejected: marginally better at binary parsing and single-binary
-  distribution, but zero VN ecosystem and a learning curve that costs more than it returns
-  on a project where performance is not the constraint. Python was rejected for binary
-  format work and Windows patcher distribution.
+- **`uv`** for environment and dependency management. Not pip, not poetry, not conda.
+- **`pyright` in strict mode — mandatory, enforced in CI (hard rule 9).** This is not a style
+  preference. Python's weakness for this project is offset arithmetic in binary parsers, where
+  a type error becomes silent corruption discovered at hour 14 of a run instead of at compile
+  time. Strict typing buys most of that back; skipping it forfeits the main thing C# offered.
+- **`pydantic`** for every data model. One definition yields the Python type, the JSON Schema
+  for constrained decoding, and validated parsing of model output — three uses, one edit.
+  This is the schema-first lever; use it rather than hand-writing parallel definitions.
+- **`construct`** for binary formats. It is **bidirectional by design** — one declarative
+  definition gives you both parse and build — which maps directly onto Gate A (identity
+  round-trip). Prefer it over hand-rolled `struct.unpack` wherever a format is regular enough.
+  `memoryview` / `mmap` for the parts that aren't.
+- **`sqlite3`** (stdlib) for the project store. One `.tsumugi` file per game.
+- **`fonttools` + `uharfbuzz`** for real glyph advances and shaping (line fitting).
+- **`fugashi`** or **`SudachiPy`** for Japanese morphology (term mining). Verify dictionary
+  licensing before depending on either.
+- **`httpx`** for the LLM client, **`typer`** for the CLI, **`rich`** for progress and ETA.
+- **`pytest` + `hypothesis`.** Property-based testing is an unusually good fit here: the
+  mutation fuzzing in `docs/10-corpus.md` is literally "generate valid length-changing
+  mutations, assert the round-trip holds." Let Hypothesis generate them.
+- **UI: FastAPI + a local browser workbench.** Same shape as WhatNotNow, Fukidashi, and
+  Yohaku. The CLI is the real engine; the web UI drives it.
 
-  **Two pieces cannot be C# and that's expected:** the font/encoding proxy DLL must be
-  native (C++) because it injects into the game process, and the Phase 7 Fukidashi bridge
-  is Python across a subprocess boundary.
-  - ⚠️ **Prerequisite: there is no .NET SDK on this machine** (`dotnet --list-sdks` is
-    empty; only runtimes 3.1/6.0/8.0 are present). Install the SDK before Phase 1.
-  - `dotnet` and `gh` exist only as **Windows** binaries under WSL —
-    `/mnt/c/Program Files/dotnet/dotnet.exe`, `/mnt/c/Program Files/GitHub CLI/gh.exe`.
-    Prefer working from Windows-side paths for build/run; WSL paths are fine for docs/git.
-- **Local LLMs via an OpenAI-compatible HTTP endpoint.** Ollama or llama.cpp's server.
-  Never bind a stage to one runtime — see "LLM routing" below.
-- **SQLite** as the project store (`Microsoft.Data.Sqlite`). One `.tsumugi` project file
-  per game. Source of truth for every text unit and its translation state.
-- **SkiaSharp / HarfBuzzSharp** for real glyph-advance measurement (line fitting).
-- **NMeCab** for Japanese morphology (term mining, proper-noun candidates). Verify the
-  package and dictionary licensing before depending on it.
-- **UI: ASP.NET Core minimal API + a local browser workbench.** Decided (revisit only with
-  cause): the workbench is a dense bilingual table with filtering, inline editing, diffing,
-  and a font-accurate textbox preview. That is a web strength and a XAML weakness, it
-  matches the muscle memory from WhatNotNow/Fukidashi/Yohaku, and the game's own font can
-  be loaded as a webfont so `canvas.measureText` previews overflow exactly. The CLI is the
-  real engine; the web UI drives it.
+**What Python costs us, and the mitigation** — be honest about this rather than discovering
+it in Phase 7:
+- No compiler to catch offset-math errors → **strict pyright, plus both round-trip gates
+  doing more work than they would in a typed language.** Gate B matters more here, not less.
+- Cannot vendor GARbro / VNTranslationTools source → **shell out to their CLIs**, which was
+  already the plan (Q5). `pythonnet` is a fallback if in-process access ever becomes
+  necessary; it has not yet.
+- Bulk byte work (hashing, diffing multi-GB archives) is slow in pure Python → `hashlib`,
+  `mmap`, and `numpy` for those paths specifically. Nowhere else needs it.
 
-## Token-efficient C# (conventions)
+**Two things are not Python and that's expected:** the font/encoding proxy DLL must be native
+(C++) because it injects into the game process, and external format tools are invoked as
+subprocesses. The **Fukidashi bridge (Phase 7) is now a plain import, not an IPC boundary** —
+one of the concrete wins from this switch.
 
-C# source costs more tokens to read and edit than Python — **measured on a representative
-validator from this project: 1.95× in a conventional style, 1.46× in a modern one.** Roughly
-half the verbosity gap is style you control, so control it. This matters because session
-token cost is a real budget, not because the runtime cares.
+## Token-efficient Python (conventions)
 
-**Write modern C#, always:**
-- file-scoped namespaces and `global using` — never a `namespace { }` block or repeated
-  `using` headers
-- collection expressions (`[.. src.Select(…)]`) over `.ToList()` / `.ToHashSet()` chains
-- primary constructors; `record` for anything that is data
-- expression-bodied members for one-liners
-- `is` / `is not` pattern matching over `==` on enums and null checks
-- target-typed `new()`
-- drop `private` (it's the default) and drop `sealed`/`public` where they carry no meaning
+Session token cost is a real budget and a stated reason for choosing Python (D19). Do not
+give the advantage back:
 
-**Structural rules that matter more than syntax:**
-- **Keep files under ~300 lines.** Re-reading a 2,000-line file to change one function is the
-  actual token sink — far larger than the verbosity delta. The ten-project layout exists
-  partly for this.
-- **Never hand-write what the toolchain generates.** `dotnet new`, IDE refactorings, and
-  source generators produce boilerplate that never passes through a model at all. That's the
-  cheapest possible code.
+- **Keep files under ~300 lines.** Re-reading a 2,000-line module to change one function is
+  the actual token sink — far larger than any syntax difference. The package layout below
+  exists partly for this.
 - **Tests must fail with values, not verdicts.** `expected 0x40 at offset 12, got 0x44` costs
-  one read. `Assert.True failed` costs a debugging session. This is why the round-trip gates
-  emit byte diffs (`docs/10-corpus.md`) — a good failure message *is* a token optimisation.
-- **Don't re-read a file to verify an edit landed.** The edit tooling errors if it didn't.
+  one read; `assert failed` costs a debugging session. Use `pytest` assertion rewriting and
+  explicit messages. A good failure message *is* a token optimisation — which is why the
+  round-trip gates emit byte diffs (`docs/10-corpus.md`).
+- **Filter tool output at the source.** `pytest -q`, `pyright --outputjson | jq`, pipe builds
+  and logs through `grep`/`head`. Raw output routinely dwarfs the source it describes.
+- **Generate, don't hand-write.** One `pydantic` model → Python type + JSON Schema + SQLite
+  DDL. Parallel hand-maintained definitions are both a token cost and a drift bug.
+- **Never re-read a file to confirm an edit landed.** The tooling errors if it didn't.
+- **Long pipeline runs must log terse failures.** A 5-hour run that dumps stack traces per
+  failed line produces logs nobody can afford to read. One line, with values, per failure.
 
-**Why the language choice does not flip on this** (see D15): the verbosity tax across the
-project's whole life is real but bounded — plausibly high six figures of tokens. Reverse-
-engineering a single non-trivial archive format from scratch costs a comparable amount and
-often fails. GARbro covers hundreds of formats and VNTranslationTools covers reinsertion for
-~15 engines, both in .NET. Avoiding even a handful of format reimplementations pays the
-entire verbosity tax, and static typing on offset math then tips it further — a type error in
-binary parsing surfaces at compile time in C# and at **hour 14 of a translate run** in Python.
 
 ## LLM routing: per-task bindings (load-bearing)
 
@@ -214,15 +202,15 @@ Local runtime notes that have already cost time on this machine:
 Full detail in `docs/01-pipeline.md`. Summary:
 
 ```
-0  Detect     engine fingerprint from the game dir       C#
-1  Unpack     archives → loose files (read-only source)  C#
-2  Extract    scripts → TextUnits + placeholders         C#   ← round-trip gate here
-3  Analyze    order graph, speakers, voice map, terms    C#   (no LLM)
+0  Detect     engine fingerprint from the game dir       py
+1  Unpack     archives → loose files (read-only source)  py
+2  Extract    scripts → TextUnits + placeholders         py   ← round-trip gate here
+3  Analyze    order graph, speakers, voice map, terms    py   (no LLM)
 4  Bible      map/reduce over scenes → draft bible       LLM  → human gate
 5  Translate  chunked, context-windowed, validated       LLM  ← the 95%
-6  QA         validators + judge on flagged lines        C#+LLM
-7  Fit        measure, reflow, insert break codes        C#
-8  Build      reinject, repack, emit patch + installer   C#
+6  QA         validators + judge on flagged lines        py+LLM
+7  Fit        measure, reflow, insert break codes        py
+8  Build      reinject, repack, emit patch + installer   py
 ```
 
 Stage 3 is deliberately LLM-free. The reading order of a VN is a *graph* (labels, jumps,
@@ -232,18 +220,21 @@ out of order is exactly the scrambled-order failure Fukidashi hit on chapter 1.
 ## Repo layout (planned — no code yet)
 
 ```
-src/Tsumugi.Core/        domain types: TextUnit, Scene, Bible, Glossary, Project
-src/Tsumugi.Formats/     IEngineAdapter implementations, one folder per engine
-src/Tsumugi.Archives/    container read/write (xp3, rpa, arc, pfs, …)
-src/Tsumugi.Analysis/    morphology, term mining, choice graph, voice→speaker map
-src/Tsumugi.Llm/         ILlmClient, batching, schema-constrained decode, prompt assembly
-src/Tsumugi.Pipeline/    stage runner, job queue, checkpoint/resume
-src/Tsumugi.Qa/          validators and linters
-src/Tsumugi.Patch/       reinjection, repack, diff, installer
-src/Tsumugi.Cli/         headless driver — the real interface
-src/Tsumugi.Studio/      ASP.NET Core host + browser workbench
-tests/                   round-trip corpus, validator unit tests
+tsumugi/core/        domain models (pydantic): TextUnit, Scene, Bible, Glossary, Project
+tsumugi/formats/     EngineAdapter implementations, one module per engine
+tsumugi/archives/    container read/write (xp3, rpa, arc, pfs, …) — `construct` definitions
+tsumugi/analysis/    morphology, term mining, choice graph, voice→speaker map
+tsumugi/llm/         LlmClient protocol, batching, schema-constrained decode, prompt assembly
+tsumugi/pipeline/    stage runner, job queue, checkpoint/resume
+tsumugi/qa/          validators and linters
+tsumugi/patch/       reinjection, repack, diff, installer
+tsumugi/cli/         typer entrypoint — the real interface
+tsumugi/studio/      FastAPI host + browser workbench
+tests/               round-trip corpus, hypothesis fuzzing, validator unit tests
 ```
+
+`EngineAdapter` is a `typing.Protocol`, not an ABC — structural typing keeps adapters
+decoupled and `pyright --strict` still checks conformance.
 
 ## Conventions
 

@@ -18,6 +18,9 @@
 | D12 | Project name **Tsumugi (紡ぎ)** — "spinning thread / weaving" | Fits the Fukidashi / Yohaku naming; describes the pipeline | Trivially — `gh repo rename` |
 | D13 | **Generic tool, no single target game** (2026-08-23) | User's call. Makes the engine abstraction the product rather than a convenience, and promotes hard rule 8 and the family ladder to load-bearing | No |
 | D14 | **Two round-trip gates: identity *and* expansion** | Identity alone moves nothing, so every offset stays correct by accident. Expansion is what proves offset fixup — the bug class that matters most as engine coverage widens | No |
+| D15 | **C# confirmed — but for ecosystem, not speed** (2026-08-23) | The pipeline is ~95% GPU-bound, so "fast and efficient" was never the real argument. GARbro + VNTranslationTools being .NET is; `Span<T>` and single-file publish are the rest. Rust and Python considered and rejected | No |
+| D16 | **Pass-based execution; never escalate models inline** | Two large models can't be co-resident in ~20.4 GB. Inline escalation means ~120 model loads *and* evicts the KV prefix cache each time | No |
+| D17 | **Prefer MoE for `translate`** | Full weights in VRAM, fraction active per token → large-model quality at small-model speed. Exactly the right trade for 3,000 sequential generation calls | Yes |
 
 ---
 

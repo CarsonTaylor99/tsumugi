@@ -73,7 +73,30 @@ These are gates, not preferences. Violating one is a bug even if the output look
 
 ## Stack
 
-- **C# / .NET, current LTS.** Everything except the models.
+- **C# / .NET, current LTS.** Everything except the models. **Confirmed 2026-08-23 — but
+  not for the reason originally given.** "Fast and efficient" is the wrong justification:
+  this pipeline is ~95% GPU-bound, and parsing a 3 MB script takes milliseconds in any
+  language. C# would never be measurably faster than Go, Rust, or even Python *here*.
+  It is still the right call, for three reasons that actually hold:
+  1. **The entire prior-art ecosystem is .NET.** GARbro (hundreds of VN archive formats)
+     and VNTranslationTools/VNTextPatch (script extract/reinsert across many engines) are
+     both C#. That is years of format reverse-engineering you can read, call, or vendor.
+     In Rust or Go you start from zero. For a *generic* tool (D13) this argument dominates
+     everything else.
+  2. **`Span<T>` / `Memory<T>` make binary parsing genuinely good** — zero-copy slicing
+     with bounds safety. The hot path here is *correctness*, not throughput, and this is
+     where C# is strongest.
+  3. **Single-file self-contained publish / NativeAOT** — ship one `.exe` patcher to
+     Windows users with no runtime install.
+
+  Rust was considered and rejected: marginally better at binary parsing and single-binary
+  distribution, but zero VN ecosystem and a learning curve that costs more than it returns
+  on a project where performance is not the constraint. Python was rejected for binary
+  format work and Windows patcher distribution.
+
+  **Two pieces cannot be C# and that's expected:** the font/encoding proxy DLL must be
+  native (C++) because it injects into the game process, and the Phase 7 Fukidashi bridge
+  is Python across a subprocess boundary.
   - ⚠️ **Prerequisite: there is no .NET SDK on this machine** (`dotnet --list-sdks` is
     empty; only runtimes 3.1/6.0/8.0 are present). Install the SDK before Phase 1.
   - `dotnet` and `gh` exist only as **Windows** binaries under WSL —
@@ -105,10 +128,40 @@ switch, no stage hardcoding a model. Tasks:
 - `judge` — QA second-opinion on flagged lines only
 - `retry` — the escalation model for lines that failed validation twice
 
-**Model tiering is the point.** `translate` runs tens of thousands of times and should be
-the *smallest model that passes QA*; `bible.*` and `retry` run rarely and should be the
-biggest model that fits VRAM. Do not run a 31B on every line by default because it's what
-happens to be loaded.
+**Model tiering is the point.** `translate` runs tens of thousands of times; `bible.reduce`
+and `retry` run rarely. Do not run the biggest model on every line by default because it's
+what happens to be loaded. Current model picks and the reasoning live in `docs/04-llm.md` —
+**that document is the authority; do not choose a model from memory.**
+
+### VRAM budget: the number that decides everything
+
+**This box has ~20.4 GB usable, not 24 GB.** Measured 2026-08-23: 3.9 GB is held at idle by
+Windows desktop compositing and GPU-accelerated Brave, and `nvidia-smi` under WSL cannot see
+those processes. It also *fluctuates* with what's open. Every model-sizing decision must be
+made against ~20.4 GB, and a guide that says "fits in 24 GB" probably does not fit here.
+
+**Freeing that 3.9 GB is a real lever**, not housekeeping — it is the difference between the
+best available model fitting and not fitting. Disable Brave's hardware acceleration (or
+close it) before a long run; the preflight gate should measure free VRAM and refuse to start
+against a model that won't fit.
+
+### Never escalate inline (load-bearing)
+
+You cannot hold two large models at once in 20.4 GB, so an inline escalation to a bigger
+`retry` model is an unload/reload — ~120 model loads across a run, and, worse, **each swap
+evicts the KV prefix cache**, destroying the prompt-caching win the throughput math depends
+on. Run **passes by resident model** instead:
+
+```
+Pass 1   translate model resident   →  translate everything, QUEUE failures
+Pass 2   same model, no swap        →  retry the queue with validator feedback
+Pass 3   swap once to the big model →  drain remaining failures + judge
+```
+
+Two model loads for the whole run instead of a hundred and twenty. `judge` may run
+interleaved **only** when it is small enough to be co-resident with `translate`
+(`OLLAMA_MAX_LOADED_MODELS=2`) — that buys live quality telemetry from hour 1. If the
+`translate` model is large enough to fill VRAM alone, `judge` becomes a Pass 3 job.
 
 Local runtime notes that have already cost time on this machine:
 - **Always pass an explicit large `num_ctx`.** Ollama silently truncates past its small

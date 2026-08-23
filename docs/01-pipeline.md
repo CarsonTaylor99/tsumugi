@@ -129,8 +129,9 @@ Output is schema-constrained JSON: exactly one entry per input index, sentinels 
 character voice stay consistent across a scene instead of resetting every chunk.
 
 Every response passes Stage 6 validation before it is written as `machine` status. Failures
-escalate: retry with the validator's complaint → retry on the `retry` model → give up, flag,
-leave source text in place with a marker.
+retry **once on the resident model** with the validator's complaint, then **queue** — they
+are drained by a batched Pass 3 on the larger `retry` model. Never swap models inline; see
+"Never escalate inline" in `docs/04-llm.md`.
 
 ---
 

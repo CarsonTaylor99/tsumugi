@@ -53,5 +53,55 @@ def gates(
         raise typer.Exit(code=1)
 
 
+@app.command()
+def extract(
+    game_dir: Path,
+    project: Path = typer.Option(
+        Path("project.tsumugi"), help="Project store to create or refresh."
+    ),
+) -> None:
+    """Stages 0-2: detect, extract, and load the project store."""
+    from tsumugi.core.store import ProjectStore
+
+    probes = detect(game_dir)
+    if not probes:
+        typer.echo(f"no known engine detected in {game_dir}", err=True)
+        raise typer.Exit(code=1)
+    top = probes[0]
+    typer.echo(f"engine: {top.engine} (confidence {top.confidence:.2f})")
+    adapter = next(a for a in all_adapters() if a.name == top.engine)
+
+    ws = Workspace(game_dir=game_dir, work_dir=project.parent / "workspace")
+    store = ProjectStore(project)
+    try:
+        count = store.replace_units(adapter.extract(ws))
+        store.set_meta(game_dir=str(game_dir), engine=top.engine)
+        stats = store.stats()
+    finally:
+        store.close()
+    typer.echo(
+        f"{count} units from {len(stats.files)} files -> {project}  "
+        f"({stats.duplicate_units} units in {stats.duplicate_groups} duplicate groups)"
+    )
+
+
+@app.command()
+def serve(
+    project: Path = typer.Argument(Path("project.tsumugi")),
+    host: str = typer.Option("127.0.0.1"),
+    port: int = typer.Option(8788),
+) -> None:
+    """Open the read-only workbench over a project store."""
+    import uvicorn
+
+    from tsumugi.studio.app import create_app
+
+    if not project.exists():
+        typer.echo(f"{project} does not exist — run `tsumugi extract` first", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Tsumugi Studio on http://{host}:{port}")
+    uvicorn.run(create_app(project), host=host, port=port, log_level="warning")
+
+
 def run() -> None:
     sys.exit(app())

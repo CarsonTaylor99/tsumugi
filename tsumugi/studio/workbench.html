@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tsumugi Studio</title>
+<style>
+  :root {
+    --washi: #FAF9F5;      /* paper ground */
+    --ink: #22303F;        /* text */
+    --indigo: #34557F;     /* identity, interactive */
+    --indigo-deep: #24405f;
+    --mist: #DFE3E4;       /* rules */
+    --mist-soft: #F0EFE9;  /* row shade */
+    --shu: #BC4B32;        /* vermilion: failure only */
+    --thread: repeating-linear-gradient(90deg,
+      var(--indigo) 0 14px, transparent 14px 18px,
+      var(--indigo-deep) 18px 26px, transparent 26px 30px);
+    --jp: "Hiragino Kaku Gothic ProN", "Yu Gothic", "Noto Sans JP", Meiryo, sans-serif;
+    --ui: system-ui, "Segoe UI", var(--jp);
+    --display: "Yu Mincho", "Hiragino Mincho ProN", "Noto Serif JP", Georgia, serif;
+    --mono: ui-monospace, Consolas, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--washi); color: var(--ink);
+    font-family: var(--ui); font-size: 14px;
+  }
+  header { padding: 18px 24px 0; }
+  .mark { display: flex; align-items: baseline; gap: 12px; }
+  .mark .kanji {
+    font-family: var(--display); font-size: 30px; font-weight: 600;
+    color: var(--indigo-deep); letter-spacing: 2px;
+  }
+  .mark .name { font-family: var(--display); font-size: 17px; color: var(--ink); }
+  .mark .proj { margin-left: auto; font-family: var(--mono); font-size: 12px; color: #5c6a76; }
+  .selvage { height: 5px; margin-top: 12px; background: var(--thread); border-radius: 1px; }
+
+  .stats { display: flex; flex-wrap: wrap; gap: 8px 18px; padding: 12px 24px 0;
+           font-size: 12.5px; color: #47555f; }
+  .stats b { color: var(--ink); font-weight: 600; }
+
+  .filters { display: flex; flex-wrap: wrap; gap: 8px; padding: 12px 24px; align-items: center; }
+  .filters select, .filters input[type="search"] {
+    font: inherit; color: var(--ink); background: #fff;
+    border: 1px solid var(--mist); border-radius: 4px; padding: 5px 8px;
+  }
+  .filters input[type="search"] { flex: 1 1 220px; min-width: 160px; }
+  .filters label.dup { display: flex; gap: 6px; align-items: center; color: #47555f; }
+  .filters :focus-visible { outline: 2px solid var(--indigo); outline-offset: 1px; }
+
+  .tablewrap { overflow-x: auto; border-top: 1px solid var(--mist); }
+  table { border-collapse: collapse; width: 100%; min-width: 760px; }
+  thead th {
+    position: sticky; top: 0; background: var(--washi); text-align: left;
+    font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.06em;
+    color: #5c6a76; font-weight: 600; padding: 8px 10px;
+    border-bottom: 2px solid var(--indigo);
+  }
+  tbody td { padding: 7px 10px; border-bottom: 1px solid var(--mist); vertical-align: top; }
+  tbody tr:nth-child(2n) { background: var(--mist-soft); }
+  td.loc { font-family: var(--mono); font-size: 11.5px; color: #5c6a76; white-space: nowrap; }
+  td.speaker { color: var(--indigo-deep); font-weight: 600; white-space: nowrap; }
+  td.jp { font-family: var(--jp); line-height: 1.7; min-width: 260px; }
+  td.en { color: #47555f; min-width: 200px; }
+  td.en .empty { color: #9aa5ad; font-style: italic; }
+  .tag { font-size: 11px; border: 1px solid var(--mist); border-radius: 3px;
+         padding: 1px 6px; color: #47555f; white-space: nowrap; }
+  .tag.choice { border-color: var(--indigo); color: var(--indigo); }
+  .status { font-size: 11px; padding: 1px 7px; border-radius: 9px; white-space: nowrap;
+            background: var(--mist-soft); border: 1px solid var(--mist); color: #47555f; }
+  .status.failed { background: var(--shu); border-color: var(--shu); color: #fff; }
+  .dup { font-family: var(--mono); font-size: 11px; color: var(--indigo);
+         border: 1px dashed var(--indigo); border-radius: 3px; padding: 0 5px; white-space: nowrap; }
+  .ph { font-family: var(--mono); font-size: 11px; color: #8a6d1f; white-space: nowrap; }
+
+  footer { display: flex; gap: 12px; align-items: center; padding: 12px 24px 20px;
+           font-size: 13px; color: #47555f; }
+  footer button {
+    font: inherit; background: #fff; color: var(--indigo-deep);
+    border: 1px solid var(--mist); border-radius: 4px; padding: 5px 12px; cursor: pointer;
+  }
+  footer button:disabled { color: #9aa5ad; cursor: default; }
+  footer button:focus-visible { outline: 2px solid var(--indigo); outline-offset: 1px; }
+  .none { padding: 40px 24px; color: #5c6a76; }
+</style>
+</head>
+<body>
+<header>
+  <div class="mark">
+    <span class="kanji">紡</span>
+    <span class="name">Tsumugi Studio</span>
+    <span class="proj" id="proj"></span>
+  </div>
+  <div class="selvage" role="presentation"></div>
+</header>
+
+<div class="stats" id="stats"></div>
+
+<div class="filters">
+  <select id="f-file" aria-label="Filter by file"><option value="">All files</option></select>
+  <select id="f-speaker" aria-label="Filter by speaker"><option value="">All speakers</option></select>
+  <select id="f-kind" aria-label="Filter by kind"><option value="">All kinds</option></select>
+  <input type="search" id="f-q" placeholder="Search Japanese or English…" aria-label="Search text">
+  <label class="dup"><input type="checkbox" id="f-dupes"> duplicates only</label>
+</div>
+
+<div class="tablewrap">
+  <table>
+    <thead><tr>
+      <th>Line</th><th>Speaker</th><th>Japanese</th><th>English</th>
+      <th>Kind</th><th>Codes</th><th>Status</th><th>Dup</th>
+    </tr></thead>
+    <tbody id="rows"></tbody>
+  </table>
+  <div class="none" id="none" hidden>No lines match these filters. Clear a filter to widen the view.</div>
+</div>
+
+<footer>
+  <button id="prev">Previous</button>
+  <span id="pageinfo"></span>
+  <button id="next">Next</button>
+</footer>
+
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+let page = 1;
+const PER = 100;
+
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+}
+
+async function loadMetaStats() {
+  const [meta, stats] = await Promise.all([
+    fetch("/api/meta").then(r => r.json()),
+    fetch("/api/stats").then(r => r.json()),
+  ]);
+  $("proj").textContent = (meta.game_dir || "") + (meta.engine ? "  ·  " + meta.engine : "");
+  $("stats").innerHTML =
+    `<span><b>${stats.total_units.toLocaleString()}</b> lines</span>` +
+    `<span><b>${stats.files.length}</b> files</span>` +
+    `<span><b>${Object.keys(stats.speakers).length}</b> speakers</span>` +
+    `<span><b>${stats.duplicate_units.toLocaleString()}</b> lines in ` +
+    `<b>${stats.duplicate_groups.toLocaleString()}</b> duplicate groups</span>`;
+  fill("f-file", stats.files);
+  fill("f-speaker", Object.keys(stats.speakers));
+  fill("f-kind", Object.keys(stats.by_kind));
+}
+
+function fill(id, values) {
+  const sel = $(id);
+  for (const v of values) {
+    const o = document.createElement("option");
+    o.value = v; o.textContent = v;
+    sel.appendChild(o);
+  }
+}
+
+async function loadUnits() {
+  const p = new URLSearchParams({page: String(page), per_page: String(PER)});
+  for (const [param, id] of [["file","f-file"],["speaker","f-speaker"],["kind","f-kind"],["q","f-q"]]) {
+    const v = $(id).value.trim();
+    if (v) p.set(param, v);
+  }
+  if ($("f-dupes").checked) p.set("dupes_only", "true");
+  const data = await fetch("/api/units?" + p).then(r => r.json());
+  const rows = data.units.map(u => `<tr>
+    <td class="loc">${esc(u.file)}:${u.ordinal}</td>
+    <td class="speaker">${u.speaker ? esc(u.speaker) : ""}</td>
+    <td class="jp">${esc(u.source_text)}</td>
+    <td class="en">${u.target_text ? esc(u.target_text) : '<span class="empty">not yet translated</span>'}</td>
+    <td><span class="tag ${u.kind === "choice" ? "choice" : ""}">${esc(u.kind)}</span></td>
+    <td>${u.placeholders ? `<span class="ph">⟦${u.placeholders}⟧</span>` : ""}</td>
+    <td><span class="status ${u.status === "failed" ? "failed" : ""}">${esc(u.status)}</span></td>
+    <td>${u.dup_count > 1 ? `<span class="dup">×${u.dup_count}</span>` : ""}</td>
+  </tr>`).join("");
+  $("rows").innerHTML = rows;
+  $("none").hidden = data.total > 0;
+  const pages = Math.max(1, Math.ceil(data.total / PER));
+  $("pageinfo").textContent =
+    `Page ${page} of ${pages} — ${data.total.toLocaleString()} lines`;
+  $("prev").disabled = page <= 1;
+  $("next").disabled = page >= pages;
+}
+
+for (const id of ["f-file", "f-speaker", "f-kind", "f-dupes"]) {
+  $(id).addEventListener("change", () => { page = 1; loadUnits(); });
+}
+let t;
+$("f-q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => { page = 1; loadUnits(); }, 250); });
+$("prev").addEventListener("click", () => { page -= 1; loadUnits(); });
+$("next").addEventListener("click", () => { page += 1; loadUnits(); });
+
+loadMetaStats().then(loadUnits);
+</script>
+</body>
+</html>

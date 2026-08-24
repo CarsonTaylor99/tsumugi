@@ -1,4 +1,4 @@
-# 11 — Phase 1 walking skeleton: implementation notes
+# 11 — Phase 1/2 implementation notes
 
 Written alongside the first code drop (`phase1-walking-skeleton` branch). Records the
 design calls that the Phase 0 docs left open, so they can be reviewed rather than
@@ -62,12 +62,29 @@ Recorded so nobody mistakes the skeleton for coverage:
 - **No `voice`-statement pairing** (Stage 3 concern), no `label`/scene segmentation.
 - `tl/` directories are skipped on extract, so an already-translated game isn't re-extracted.
 
+## Phase 2: project store + read-only workbench
+
+- `tsumugi/core/store.py` — one SQLite file per game. The units-table DDL is
+  **generated from the TextUnit pydantic model** (the schema-first lever); only
+  store-side columns (`status`) are declared by hand. Duplicate counts come from a
+  `source_hash` group join, so the workbench shows ×N badges with no extra pass.
+- `tsumugi/studio/` — FastAPI host + a single-file, dependency-free workbench page
+  (offline tool: no webfonts, no CDN). Bilingual table, filters (file / speaker /
+  kind / free-text / duplicates-only), stats header, pagination.
+- Phase 2 is read-only, so `replace_units` is a full swap; hard rule 6 (locked
+  lines survive re-runs) becomes binding when writes land in Phase 4 — the
+  `status` column is already there for it.
+- The roadmap's Phase 2 criterion says "reading order"; true reading order is the
+  Stage 3 graph (Phase 3). Until then the table is file/ordinal order.
+
 ## Running it
 
 ```
 uv sync --group dev
-uv run pytest                             # gates + parser tests + fuzzing
+uv run pytest                             # gates + parser + store + API tests
 uv run pyright                            # strict, hard rule 9
-uv run tsumugi probe  tests/fixtures/renpy_tier0
-uv run tsumugi gates  tests/fixtures/renpy_tier0
+uv run tsumugi probe   tests/fixtures/renpy_tier0
+uv run tsumugi gates   tests/fixtures/renpy_tier0
+uv run tsumugi extract <renpy-game-dir> --project game.tsumugi
+uv run tsumugi serve   game.tsumugi       # workbench on http://127.0.0.1:8788
 ```

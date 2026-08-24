@@ -147,9 +147,17 @@ file prefixes, and its cast are deliberately not named in this public repo.
   exists the identity gate reports `.scn` files as "no write path for this
   format yet" instead of pretending (hard rule 2 — no translated build for
   this title until that lands). Phase 2 browsing needs only extraction.
-- **Verified on the target:** 3,894 units from 16 files (1,971 dialogue /
-  1,923 narration), all eight speakers correctly attributed and matching the
-  title's own charlist.csv, 59 duplicate groups.
+- **Inline `%`-codes and backslash-codes in .scn text.** A corpus scan of the
+  full title found `%p…;` / `%f…;` / `%NN;` style switches (font names may
+  contain spaces — the arg runs to the `;`) and `\n` / `\k` / `\x` controls
+  inside scenario text. `mask(scn_codes=True)` masks both families; a bare
+  `%` in prose (１００%) stays text. Grammar comes from the scan, not guesses.
+- **Verified on the full target dump:** 47,571 units from 226 scenario files
+  (22,648 dialogue / 24,923 narration), 17 speakers, 4,259 units in 955
+  duplicate groups, 7,238 masked control codes, zero raw codes remaining in
+  stored source text. The KirikiriTools force-load appconfig (printed by
+  `tsumugi krkr-dump-script`) dumps every scenario in one boot — confirmed
+  working on the target.
 
 ## Running it
 

@@ -54,6 +54,36 @@ def test_mask_literal_brackets() -> None:
     assert masked == "括弧は[[こう]]書く。" and ph == []
 
 
+def test_mask_scn_percent_and_backslash_codes() -> None:
+    # Shapes taken verbatim from a real .scn corpus scan (docs/11).
+    text = "興奮しているわけではない%p-1;%fＭＳ ゴシック;――%p;%fuser;続き\\n次行\\k待つ"
+    result = mask(text, scn_codes=True)
+    assert result is not None
+    masked, ph = result
+    assert masked == "興奮しているわけではない⟦0⟧⟦1⟧――⟦2⟧⟦3⟧続き⟦4⟧次行⟦5⟧待つ", masked
+    assert [p.raw for p in ph] == [
+        "%p-1;", "%fＭＳ ゴシック;", "%p;", "%fuser;", "\\n", "\\k",
+    ], [p.raw for p in ph]
+    assert [p.kind for p in ph[:4]] == [PlaceholderKind.OPAQUE] * 4
+    assert ph[4].kind == PlaceholderKind.LINEBREAK
+    assert ph[5].kind == PlaceholderKind.WAIT
+
+
+def test_mask_scn_prose_percent_stays_text() -> None:
+    result = mask("勝率は１００%です。%50;半分。", scn_codes=True)
+    assert result is not None
+    masked, ph = result
+    assert masked == "勝率は１００%です。⟦0⟧半分。", masked
+    assert [p.raw for p in ph] == ["%50;"]
+
+
+def test_mask_default_leaves_scn_codes_alone() -> None:
+    # .ks path unchanged: % and backslash are plain text there.
+    result = mask("100%の力\\nで")
+    assert result is not None
+    assert result[0] == "100%の力\\nで" and result[1] == []
+
+
 def test_mask_refuses_unterminated() -> None:
     assert mask("broken [r") is None
 

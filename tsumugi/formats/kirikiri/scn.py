@@ -59,7 +59,7 @@ def extract_scn(raw: bytes, rel: str, ordinal_start: int) -> Iterator[TextUnit]:
                 text = take[1]
                 if not isinstance(text, str) or not text:
                     continue
-                masked_result = mask(text)
+                masked_result = mask(text, scn_codes=True)
                 if masked_result is None:
                     continue  # unmaskable markup: leave untouched
                 masked, placeholders = masked_result

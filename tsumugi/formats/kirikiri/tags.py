@@ -6,6 +6,8 @@ hold (see docs/11)."""
 
 from __future__ import annotations
 
+import re
+
 from tsumugi.core.models import Placeholder, PlaceholderKind
 from tsumugi.core.sentinels import sentinel
 
@@ -51,8 +53,23 @@ def find_tag_end(text: str, start: int) -> int | None:
     return None
 
 
-def mask(text: str) -> tuple[str, list[Placeholder]] | None:
-    """Mask inline tags. None when the text cannot be masked losslessly."""
+# .scn (KAGEnv) inline codes, grammar taken from a corpus scan of a real
+# title (docs/11): %<alnum><args>; where args may contain spaces (font
+# names), e.g. %p-1; %p; %fＭＳ ゴシック; %50; — plus \n / \k / \x.
+_PERCENT_RE = re.compile(r"%[A-Za-z0-9][^;%\n]{0,40};|%;")
+_BACKSLASH_KINDS = {
+    "n": PlaceholderKind.LINEBREAK,
+    "k": PlaceholderKind.WAIT,
+    "x": PlaceholderKind.OPAQUE,
+}
+
+
+def mask(
+    text: str, *, scn_codes: bool = False
+) -> tuple[str, list[Placeholder]] | None:
+    """Mask inline tags. None when the text cannot be masked losslessly.
+    With scn_codes=True, also masks the %-code and backslash-code families
+    used inside compiled-scenario text."""
     if "⟦" in text or "⟧" in text:
         return None
     out: list[str] = []
@@ -61,6 +78,33 @@ def mask(text: str) -> tuple[str, list[Placeholder]] | None:
     n = len(text)
     while i < n:
         c = text[i]
+        if scn_codes and c == "%":
+            m = _PERCENT_RE.match(text, i)
+            if m is not None:
+                idx = len(placeholders)
+                placeholders.append(
+                    Placeholder(
+                        index=idx, raw=m.group(0), kind=PlaceholderKind.OPAQUE
+                    )
+                )
+                out.append(sentinel(idx))
+                i = m.end()
+                continue
+            out.append(c)  # bare % in prose (e.g. １００%) stays text
+            i += 1
+            continue
+        if scn_codes and c == "\\" and i + 1 < n and text[i + 1] in _BACKSLASH_KINDS:
+            idx = len(placeholders)
+            placeholders.append(
+                Placeholder(
+                    index=idx,
+                    raw=text[i : i + 2],
+                    kind=_BACKSLASH_KINDS[text[i + 1]],
+                )
+            )
+            out.append(sentinel(idx))
+            i += 2
+            continue
         if c == "[":
             if i + 1 < n and text[i + 1] == "[":  # [[ is a literal bracket
                 out.append("[[")

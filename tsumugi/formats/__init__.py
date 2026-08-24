@@ -6,11 +6,12 @@ from pathlib import Path
 
 from tsumugi.core.adapter import EngineAdapter
 from tsumugi.core.models import EngineProbe
+from tsumugi.formats.kirikiri.adapter import KirikiriAdapter
 from tsumugi.formats.renpy.adapter import RenpyAdapter
 
 
 def all_adapters() -> list[EngineAdapter]:
-    return [RenpyAdapter()]
+    return [RenpyAdapter(), KirikiriAdapter()]
 
 
 def detect(game_dir: Path) -> list[EngineProbe]:

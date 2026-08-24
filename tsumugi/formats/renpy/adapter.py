@@ -24,6 +24,7 @@ from tsumugi.core.models import (
     EngineProbe,
     EngineTextCaps,
     RoundTripResult,
+    ScriptGraph,
     TextUnit,
     Workspace,
 )
@@ -127,6 +128,10 @@ class RenpyAdapter:
             out_path = ws.patched_dir() / rel
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_bytes(src.encode("utf-8"))
+
+    def build_graph(self, ws: Workspace) -> ScriptGraph:
+        # Ren'Py label/jump graph is future Phase 7 work; empty is honest.
+        return ScriptGraph()
 
     def verify_round_trip(self, ws: Workspace) -> RoundTripResult:
         return run_gates(self, ws)

@@ -11,6 +11,7 @@ from tsumugi.core.models import (
     EngineProbe,
     EngineTextCaps,
     RoundTripResult,
+    ScriptGraph,
     TextUnit,
     Workspace,
 )
@@ -26,6 +27,11 @@ class EngineAdapter(Protocol):
 
     def extract(self, ws: Workspace) -> Iterator[TextUnit]:
         """Units with placeholders masked. Must not modify game_dir."""
+        ...
+
+    def build_graph(self, ws: Workspace) -> ScriptGraph:
+        """Scene nodes + flow edges for Stage 3 reading order. An engine
+        with no graph support returns an empty graph."""
         ...
 
     def inject(self, ws: Workspace, units: Iterable[TextUnit]) -> None:

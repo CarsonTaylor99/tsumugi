@@ -77,6 +77,37 @@ Recorded so nobody mistakes the skeleton for coverage:
 - The roadmap's Phase 2 criterion says "reading order"; true reading order is the
   Stage 3 graph (Phase 3). Until then the table is file/ordinal order.
 
+## KiriKiri adapter (family 2: archive + text script)
+
+Second adapter, driven by a real Tier 3 target (encrypted KiriKiriZ title, XP3 v2).
+
+- **`tsumugi/archives/xp3.py`** — clean-room XP3 reader: index parse for any
+  archive, extraction for unencrypted ones. Commercial titles set the protect
+  flag (per-title cxdec cipher); those are *reported with a workflow*, never
+  guessed at. Writing (patch2.xp3) is Phase 6; revisit `construct` then.
+- **Encrypted-title workflow** (hard rule 7 keeps Tsumugi from writing into the
+  game dir, so the one-time dump is a user step): KirikiriTools' version.dll
+  (arcusmaximus — already our docs/02 vendor) dumps decrypted files as the
+  engine loads them; for `.scn`-based (KAGEnvPlayer) titles,
+  `tsumugi krkr-dump-script` prints the appconfig.tjs that force-loads every
+  scene so one run dumps everything. `tsumugi unpack` prints all of this when
+  it meets a protected archive.
+- **`.ks` (KAG) parsing** — line-start grammar (`;` comment, `*` label, `@`
+  command, else text), 【名前】/【名前/表示名】 speaker prefixes,
+  `[iscript]…[endscript]` skipped, quoted attribute values honored in tag
+  scanning, `[[` literal brackets. Per-file encoding (cp932 / UTF-16LE / UTF-8)
+  is detected and verified to re-encode byte-identically before extraction;
+  Tier 0 commits one cp932 and one UTF-16LE fixture so both stay proven in CI.
+- **Linebreak reconciliation (docs/05 vs Gate A):** `[r]` is masked with kind
+  `linebreak` and *kept* in the unit — if Stage 2 stripped it, identity could
+  never round-trip. The docs/05 "model never sees linebreaks" rule moves to
+  Stage 5 prompt assembly, which drops linebreak-kind sentinels on the way to
+  the model and Stage 7 re-derives them. Extraction stays lossless.
+- **`.scn` caveat:** KAGEnvPlayer-era titles compile scenarios to PSB `.scn`
+  binaries instead of (or alongside) `.ks`. The adapter currently handles `.ks`
+  only; if a dump yields `.scn`, that is a separate parser (FreeMote/PSB prior
+  art) — scoped when a real dump shows it's needed.
+
 ## Running it
 
 ```

@@ -28,6 +28,39 @@ def is_scenario_psb(root: PsbValue) -> bool:
     return isinstance(root, dict) and "scenes" in root
 
 
+def scan_scenes(raw: bytes) -> list[tuple[str, str | None, list[str]]]:
+    """(label, title, next_storages) per scene — Stage 3 graph input."""
+    root = PsbReader(raw).root()
+    if not is_scenario_psb(root):
+        return []
+    assert isinstance(root, dict)
+    scenes = root["scenes"]
+    out: list[tuple[str, str | None, list[str]]] = []
+    if not isinstance(scenes, list):
+        return out
+    for scene in scenes:
+        if not isinstance(scene, dict):
+            continue
+        label = scene.get("label")
+        title = scene.get("title")
+        nexts: list[str] = []
+        raw_nexts = scene.get("nexts")
+        if isinstance(raw_nexts, list):
+            for nx in raw_nexts:
+                if isinstance(nx, dict):
+                    st = nx.get("storage")
+                    if isinstance(st, str):
+                        nexts.append(st)
+        out.append(
+            (
+                label if isinstance(label, str) else "",
+                title if isinstance(title, str) else None,
+                nexts,
+            )
+        )
+    return out
+
+
 def extract_scn(raw: bytes, rel: str, ordinal_start: int) -> Iterator[TextUnit]:
     """TextUnits from one .scn. Raises PsbError on a malformed file."""
     root = PsbReader(raw).root()
@@ -42,6 +75,12 @@ def extract_scn(raw: bytes, rel: str, ordinal_start: int) -> Iterator[TextUnit]:
     for si, scene in enumerate(scenes):
         if not isinstance(scene, dict):
             continue
+        title = scene.get("title")
+        label = scene.get("label")
+        scene_name = (
+            title if isinstance(title, str) and title
+            else label if isinstance(label, str) else None
+        )
         texts = scene.get("texts")
         if not isinstance(texts, list):
             continue
@@ -72,6 +111,7 @@ def extract_scn(raw: bytes, rel: str, ordinal_start: int) -> Iterator[TextUnit]:
                     placeholders=placeholders,
                     speaker=speaker,
                     kind=UnitKind.DIALOGUE if speaker else UnitKind.NARRATION,
+                    scene=scene_name,
                     file=rel,
                     offset=ordinal,  # no byte offset until the PSB writer exists
                     length=len(text),

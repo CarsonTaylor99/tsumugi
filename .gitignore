@@ -13,6 +13,7 @@ build/
 # Tsumugi project data — never commit game content
 workspace/
 projects/
+/bible/
 *.tsumugi
 *.tsumugi-shm
 *.tsumugi-wal

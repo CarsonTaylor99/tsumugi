@@ -86,11 +86,39 @@ class ProjectStore:
             f"""
             {_units_ddl()};
             CREATE TABLE IF NOT EXISTS meta (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS scenes (
+                file TEXT NOT NULL, label TEXT NOT NULL, title TEXT,
+                order_index INTEGER, nexts TEXT NOT NULL,
+                PRIMARY KEY (file, label)
+            );
+            CREATE TABLE IF NOT EXISTS terms (
+                term TEXT PRIMARY KEY, count INTEGER NOT NULL,
+                kind TEXT NOT NULL, sample TEXT NOT NULL
+            );
+            CREATE TABLE IF NOT EXISTS observations (
+                key TEXT PRIMARY KEY, scene TEXT NOT NULL, model TEXT NOT NULL,
+                prompt_hash TEXT NOT NULL, payload TEXT NOT NULL,
+                created TEXT NOT NULL DEFAULT (datetime('now'))
+            );
             CREATE INDEX IF NOT EXISTS idx_units_hash ON units (source_hash);
             CREATE INDEX IF NOT EXISTS idx_units_file ON units (file);
             CREATE INDEX IF NOT EXISTS idx_units_speaker ON units (speaker);
             """
         )
+        self._migrate_unit_columns()
+
+    def _migrate_unit_columns(self) -> None:
+        """Add unit columns introduced after a store was created (additive
+        only — pydantic supplies defaults on read)."""
+        existing = {
+            str(r["name"])
+            for r in self._db.execute("PRAGMA table_info(units)").fetchall()
+        }
+        for name, field in TextUnit.model_fields.items():
+            if name not in existing:
+                col = _column_sql(name, field.annotation).replace(" NOT NULL", "")
+                with self._db:
+                    self._db.execute(f"ALTER TABLE units ADD COLUMN {col}")
 
     def close(self) -> None:
         self._db.close()
@@ -168,6 +196,56 @@ class ProjectStore:
             params,
         ).fetchall()
         return UnitPage(total=total, rows=[_to_row(r) for r in rows])
+
+    # -- analysis artifacts ------------------------------------------------
+
+    def replace_scenes(self, rows: list[tuple[str, str, str | None, int | None, str]]) -> None:
+        """(file, label, title, order_index, nexts_json) rows."""
+        with self._db:
+            self._db.execute("DELETE FROM scenes")
+            self._db.executemany(
+                "INSERT INTO scenes (file, label, title, order_index, nexts) "
+                "VALUES (?, ?, ?, ?, ?)",
+                rows,
+            )
+
+    def replace_terms(self, rows: list[tuple[str, int, str, str]]) -> None:
+        """(term, count, kind, sample) rows."""
+        with self._db:
+            self._db.execute("DELETE FROM terms")
+            self._db.executemany(
+                "INSERT INTO terms (term, count, kind, sample) VALUES (?, ?, ?, ?)",
+                rows,
+            )
+
+    def terms(self, limit: int = 200) -> list[tuple[str, int, str, str]]:
+        rows = self._db.execute(
+            "SELECT term, count, kind, sample FROM terms ORDER BY count DESC LIMIT ?",
+            (limit,),
+        ).fetchall()
+        return [(str(r["term"]), int(r["count"]), str(r["kind"]), str(r["sample"])) for r in rows]
+
+    def put_observation(
+        self, key: str, scene: str, model: str, prompt_hash: str, payload: str
+    ) -> None:
+        with self._db:
+            self._db.execute(
+                "INSERT OR REPLACE INTO observations "
+                "(key, scene, model, prompt_hash, payload) VALUES (?, ?, ?, ?, ?)",
+                (key, scene, model, prompt_hash, payload),
+            )
+
+    def observation(self, key: str) -> str | None:
+        row = self._db.execute(
+            "SELECT payload FROM observations WHERE key = ?", (key,)
+        ).fetchone()
+        return str(row["payload"]) if row else None
+
+    def observations(self) -> list[tuple[str, str]]:
+        rows = self._db.execute(
+            "SELECT scene, payload FROM observations ORDER BY key"
+        ).fetchall()
+        return [(str(r["scene"]), str(r["payload"])) for r in rows]
 
     def stats(self) -> StoreStats:
         db = self._db

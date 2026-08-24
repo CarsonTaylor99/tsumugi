@@ -21,6 +21,8 @@ from tsumugi.core.models import (
     EngineProbe,
     EngineTextCaps,
     RoundTripResult,
+    SceneNode,
+    ScriptGraph,
     TextUnit,
     Workspace,
 )
@@ -28,7 +30,7 @@ from tsumugi.core.sentinels import split_segments, unmask
 from tsumugi.formats.kirikiri.kstext import decode as ks_decode, encode as ks_encode
 from tsumugi.formats.kirikiri.parser import parse_ks
 from tsumugi.formats.kirikiri.psb import PsbError
-from tsumugi.formats.kirikiri.scn import extract_scn
+from tsumugi.formats.kirikiri.scn import extract_scn, scan_scenes
 from tsumugi.formats.kirikiri.tags import mask
 from tsumugi.qa.gates import run_gates
 from tsumugi.qa.placeholders import check_placeholder_contract
@@ -153,6 +155,19 @@ class KirikiriAdapter:
             out_path = ws.patched_dir() / rel
             out_path.parent.mkdir(parents=True, exist_ok=True)
             out_path.write_bytes(ks_encode(src, codec))
+
+    def build_graph(self, ws: Workspace) -> ScriptGraph:
+        nodes: list[SceneNode] = []
+        for path in sorted(ws.game_dir.rglob("*.scn")):
+            rel = path.relative_to(ws.game_dir).as_posix()
+            try:
+                for label, title, nexts in scan_scenes(path.read_bytes()):
+                    nodes.append(
+                        SceneNode(file=rel, label=label, title=title, nexts=nexts)
+                    )
+            except PsbError as e:
+                _skip(rel, 0, str(e))
+        return ScriptGraph(nodes=nodes)
 
     def verify_round_trip(self, ws: Workspace) -> RoundTripResult:
         return run_gates(self, ws)

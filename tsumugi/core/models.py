@@ -60,6 +60,8 @@ class TextUnit(BaseModel):
     length: int
     ordinal: int
     source_hash: str
+    # Scene this unit belongs to (label or title), when the engine exposes it.
+    scene: str | None = None
     # Escape-hatch for units whose manual breaks are semantic (poems, letters,
     # ASCII art). Stage 7 must not re-derive breaks for these.
     preserve_breaks: bool = False
@@ -85,6 +87,21 @@ class EngineTextCaps(BaseModel):
     ruby_syntax: str | None = None
     proportional_fonts: bool
     var_interpolation: bool
+
+
+class SceneNode(BaseModel):
+    """One scene: where it lives and which storages it flows into."""
+
+    file: str
+    label: str
+    title: str | None = None
+    nexts: list[str] = Field(default_factory=list[str])
+
+
+class ScriptGraph(BaseModel):
+    """Stage 3 reading-order input. File order is not reading order."""
+
+    nodes: list[SceneNode] = Field(default_factory=list[SceneNode])
 
 
 class GateFailure(BaseModel):

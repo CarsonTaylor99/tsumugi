@@ -159,6 +159,38 @@ file prefixes, and its cast are deliberately not named in this public repo.
   `tsumugi krkr-dump-script`) dumps every scenario in one boot — confirmed
   working on the target.
 
+## Phase 3: analysis + bible (first increment)
+
+- **`tsumugi/analysis/`** — Stage 3, deterministic, zero LLM (docs/01).
+  `scenegraph.py`: reading order by BFS over `SceneNode.nexts` from the entry
+  scenes; unreachable files are appended, never dropped. The graph comes
+  through the new `EngineAdapter.build_graph()` protocol method (hard rule 8:
+  analysis never knows the engine). `terms.py`: regex morphology — katakana
+  runs + kanji compounds, frequency-ranked, speaker names auto-tagged so the
+  glossary can exclude them. SudachiPy/fugashi remains the planned upgrade
+  once dictionary licensing is verified; same interface.
+- **`tsumugi/llm/client.py`** — Ollama client with docs/04 rules baked in:
+  explicit `num_ctx` on every call, schema-constrained decode via `format`,
+  [stable system][volatile user] prompt split for KV prefix reuse. Bindings
+  are per-task (`LlmBinding`), never hardcoded in a stage.
+- **`tsumugi/bible/`** — `mapper.py`: bible.map over ~60-unit windows in
+  reading order; observations (first person, speech style, gender evidence,
+  terms) cached in the store keyed by content+model+prompt+schema hash, so
+  crashes and re-runs are cheap. `draft.py`: deterministic aggregation into
+  cast/*.yaml + glossary.yaml + style.yaml — disagreements are surfaced as
+  `conflicts:` on the card, never silently resolved (docs/03 pass C rule).
+  The LLM reduce pass for conflict resolution is still to come.
+- **Approval gate plumbed:** `bible-draft` writes `bible_approved=false` to
+  meta; `tsumugi bible-approve` flips it; Stage 5 must refuse to start
+  otherwise (hard rule 5).
+- **On the target:** `analyze` resolves 254 scenes across 226 files to a
+  single entry scene and mines 3,293 term candidates. bible.map piloted on
+  the locally installed 31B (the docs/04 "fits barely" row).
+- **Known simplification:** map windows currently run in store order
+  (file/ordinal), which matches reading order for this title's linear
+  chapter naming; joining `scenes.order_index` into the window ordering is
+  the correct general fix and is small.
+
 ## Running it
 
 ```

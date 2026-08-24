@@ -102,6 +102,118 @@ def extract(
 
 
 @app.command()
+def analyze(
+    game_dir: Path,
+    project: Path = typer.Option(Path("project.tsumugi")),
+    engine: str = typer.Option("kirikiri"),
+) -> None:
+    """Stage 3 (no LLM): reading-order graph + term mining into the store."""
+    import json as _json
+
+    from tsumugi.analysis.scenegraph import reading_order
+    from tsumugi.analysis.terms import mine_terms
+    from tsumugi.core.store import ProjectStore
+
+    adapter = next((a for a in all_adapters() if a.name == engine), None)
+    if adapter is None:
+        typer.echo(f"unknown engine {engine!r}", err=True)
+        raise typer.Exit(code=2)
+    ws = Workspace(game_dir=game_dir, work_dir=project.parent / "workspace")
+    graph = adapter.build_graph(ws)
+    ordered = reading_order(graph)
+
+    store = ProjectStore(project)
+    try:
+        store.replace_scenes(
+            [
+                (n.file, n.label, n.title, idx, _json.dumps(n.nexts))
+                for n, idx in ordered
+            ]
+        )
+        units = [r.unit for r in store.units(limit=1_000_000).rows]
+        terms = mine_terms(units)
+        store.replace_terms(terms)
+        entry_files = [n.file for n, i in ordered if i == 0]
+        typer.echo(
+            f"scenes: {len(ordered)} across {len({n.file for n, _ in ordered})} files; "
+            f"entry: {entry_files[:2]}"
+        )
+        typer.echo(f"terms mined: {len(terms)}; top 10:")
+        for term, count, kind, _ in terms[:10]:
+            typer.echo(f"  {count:5}  {term} ({kind})")
+    finally:
+        store.close()
+
+
+@app.command(name="bible-map")
+def bible_map(
+    project: Path = typer.Option(Path("project.tsumugi")),
+    model: str | None = typer.Option(None, help="Ollama model; default: first installed."),
+    limit: int | None = typer.Option(None, help="Only the first N windows (pilot run)."),
+    num_ctx: int = typer.Option(8192),
+) -> None:
+    """Stage 4 map: per-window observations on the LOCAL model (checkpointed;
+    re-running continues)."""
+    from tsumugi.bible.mapper import run_map
+    from tsumugi.core.store import ProjectStore
+    from tsumugi.llm.client import LlmBinding, discover_default_model
+
+    resolved = model or discover_default_model()
+    if resolved is None:
+        typer.echo("no Ollama model found — is Ollama running?", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"bible.map on {resolved} (num_ctx={num_ctx})")
+    store = ProjectStore(project)
+    try:
+        done, cached, failed = run_map(
+            store,
+            LlmBinding(model=resolved, num_ctx=num_ctx),
+            limit=limit,
+        )
+    finally:
+        store.close()
+    typer.echo(f"done {done}, cached {cached}, failed {failed}")
+    if failed:
+        raise typer.Exit(code=1)
+
+
+@app.command(name="bible-draft")
+def bible_draft(
+    project: Path = typer.Option(Path("project.tsumugi")),
+    out: Path = typer.Option(Path("bible")),
+) -> None:
+    """Aggregate observations + mined terms into the draft bible (YAML).
+    The draft requires human review before translation (hard rule 5)."""
+    from tsumugi.bible.draft import build_draft
+    from tsumugi.core.store import ProjectStore
+
+    store = ProjectStore(project)
+    try:
+        counts = build_draft(store, out)
+        store.set_meta(bible_approved="false", bible_dir=str(out))
+    finally:
+        store.close()
+    typer.echo(
+        f"draft bible -> {out}  ({counts['cast']} cast cards from "
+        f"{counts['windows']} observation windows, {counts['glossary']} glossary rows)"
+    )
+    typer.echo("review it, then run: tsumugi bible-approve")
+
+
+@app.command(name="bible-approve")
+def bible_approve(project: Path = typer.Option(Path("project.tsumugi"))) -> None:
+    """Mark the bible reviewed. Translation refuses to start without this."""
+    from tsumugi.core.store import ProjectStore
+
+    store = ProjectStore(project)
+    try:
+        store.set_meta(bible_approved="true")
+    finally:
+        store.close()
+    typer.echo("bible approved — translation may start (hard rule 5 satisfied)")
+
+
+@app.command()
 def unpack(
     source: Path = typer.Argument(help="A game directory or a single .xp3 file."),
     dest: Path = typer.Option(Path("workspace/unpacked"), help="Extraction target."),

@@ -83,13 +83,22 @@ def extract(
         f"{count} units from {len(stats.files)} files -> {project}  "
         f"({stats.duplicate_units} units in {stats.duplicate_groups} duplicate groups)"
     )
-    if count == 0 and any(game_dir.glob("*.xp3")):
-        typer.echo(
-            "0 units but .xp3 archives present — the scripts are still packed. "
-            "Run `tsumugi unpack` (or dump an encrypted title with KirikiriTools) "
-            "and extract from the unpacked folder.",
-            err=True,
-        )
+    if count == 0:
+        if any(game_dir.glob("*.xp3")):
+            typer.echo(
+                "0 units but .xp3 archives present — the scripts are still packed. "
+                "Run `tsumugi unpack` (or dump an encrypted title with "
+                "KirikiriTools) and extract from the unpacked folder.",
+                err=True,
+            )
+        elif any(game_dir.rglob("*.ks")):
+            typer.echo(
+                "0 translatable units, though .ks scripts are present — they look "
+                "like engine/system scripts (all tags, no dialogue). Story scenario "
+                "files dump only as the game is played: start a new game and advance "
+                "into the story, then re-run extract.",
+                err=True,
+            )
 
 
 @app.command()

@@ -66,7 +66,12 @@ def run_identity_gate(adapter: EngineAdapter, ws: Workspace) -> GateResult:
         original = (ws.game_dir / rel).read_bytes()
         patched_path = ws.patched_dir() / rel
         if not patched_path.exists():
-            failures.append(GateFailure(file=rel, message="inject wrote no file"))
+            failures.append(
+                GateFailure(
+                    file=rel,
+                    message="inject wrote no file (no write path for this format yet)",
+                )
+            )
             continue
         patched = patched_path.read_bytes()
         if original != patched:

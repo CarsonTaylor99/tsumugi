@@ -25,7 +25,10 @@ from tsumugi.core.models import (
     Workspace,
 )
 from tsumugi.core.sentinels import split_segments, unmask
-from tsumugi.formats.kirikiri.parser import detect_encoding, parse_ks
+from tsumugi.formats.kirikiri.kstext import decode as ks_decode, encode as ks_encode
+from tsumugi.formats.kirikiri.parser import parse_ks
+from tsumugi.formats.kirikiri.psb import PsbError
+from tsumugi.formats.kirikiri.scn import extract_scn
 from tsumugi.formats.kirikiri.tags import mask
 from tsumugi.qa.gates import run_gates
 from tsumugi.qa.placeholders import check_placeholder_contract
@@ -79,14 +82,24 @@ class KirikiriAdapter:
 
     def extract(self, ws: Workspace) -> Iterator[TextUnit]:
         ordinal = 0
+        # Compiled .scn scenarios (KAGEnvPlayer titles) — extract-only until
+        # the Phase 6 PSB writer exists.
+        for path in sorted(ws.game_dir.rglob("*.scn")):
+            rel = path.relative_to(ws.game_dir).as_posix()
+            try:
+                for unit in extract_scn(path.read_bytes(), rel, ordinal):
+                    ordinal = unit.ordinal
+                    yield unit
+            except PsbError as e:
+                _skip(rel, 0, str(e))
         for path in self._script_files(ws.game_dir):
             rel = path.relative_to(ws.game_dir).as_posix()
             raw = path.read_bytes()
-            enc = detect_encoding(raw)
-            if enc is None:
-                _skip(rel, 0, "encoding does not round-trip byte-identically")
+            decoded = ks_decode(raw)
+            if decoded is None:
+                _skip(rel, 0, "text does not round-trip byte-identically")
                 continue
-            text = raw.decode(enc)
+            text, _codec = decoded
             for line in parse_ks(text):
                 ordinal += 1
                 masked_result = mask(line.text)
@@ -116,11 +129,15 @@ class KirikiriAdapter:
         for u in units:
             by_file[u.file].append(u)
         for rel, file_units in by_file.items():
+            if rel.endswith(".scn"):
+                # No PSB writer yet (Phase 6): skip, so the identity gate
+                # reports these files as unwritable instead of passing.
+                continue
             raw = (ws.game_dir / rel).read_bytes()
-            enc = detect_encoding(raw)
-            if enc is None:
-                raise ValueError(f"{rel}: encoding no longer round-trips")
-            src = raw.decode(enc)
+            decoded = ks_decode(raw)
+            if decoded is None:
+                raise ValueError(f"{rel}: text no longer round-trips")
+            src, codec = decoded
             for u in sorted(file_units, key=lambda u: u.offset, reverse=True):
                 text = u.target_text if u.target_text is not None else u.source_text
                 problems = check_placeholder_contract(u, text)
@@ -135,7 +152,7 @@ class KirikiriAdapter:
                 src = src[: u.offset] + new_raw + src[u.offset + u.length :]
             out_path = ws.patched_dir() / rel
             out_path.parent.mkdir(parents=True, exist_ok=True)
-            out_path.write_bytes(src.encode(enc))
+            out_path.write_bytes(ks_encode(src, codec))
 
     def verify_round_trip(self, ws: Workspace) -> RoundTripResult:
         return run_gates(self, ws)

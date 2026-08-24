@@ -108,6 +108,49 @@ Second adapter, driven by a real Tier 3 target (encrypted KiriKiriZ title, XP3 v
   only; if a dump yields `.scn`, that is a separate parser (FreeMote/PSB prior
   art) — scoped when a real dump shows it's needed.
 
+## KiriKiri scrambled text codec (`kstext.py`) — found via the real target
+
+A KirikiriTools dump of the Tier 3 target title showed that storage-decrypted
+`.ks`/`.tjs`/`.csv`/`.txt` are still wrapped in KiriKiri's own text-file
+container: `0xFE 0xFE`, a mode byte, a `0xFF 0xFE` BOM, then transformed
+UTF-16LE. Reimplemented from KirikiriTools' `Descrambler.cs` (MIT), verified
+against real files:
+
+- **mode 0** conditional XOR (self-inverse); **mode 1** 16-bit bit-swap
+  `((c&0xAAAA)>>1)|((c&0x5555)<<1)` (self-inverse; what the target uses);
+  **mode 2** zlib/deflate.
+- Modes 0/1 are involutions, so re-encoding an unchanged file is byte-identical
+  — Gate A holds. `decode()` proves this per file with an `encode(decode(x))==x`
+  guard and skips loudly on failure. Mode 2 is decode-only (zlib output isn't
+  byte-reproducible); no mode-2 file has appeared in the target.
+- Plain cp932 / UTF-16 / UTF-8 files still go through `detect_encoding`.
+- Tier 0 gains a committed mode-1 scrambled fixture so CI exercises the codec.
+
+**State of the real target:** the title is `.scn`-based after all — playing
+into the story dumped 16 `*.txt.scn` scenario files (raw PSB v3, uncompressed,
+unencrypted after the KirikiriTools dump). `.ks` on this title is
+engine/system script only. Per hard rule 4 and Q7, the specific title, its
+file prefixes, and its cast are deliberately not named in this public repo.
+
+## PSB v3 reader + .scn extraction (the real scenario path)
+
+- **`psb.py`** — read-only PSB v2/v3 parser reimplemented from FreeMote
+  (Psb.cs/PsbValues.cs): width-prefixed little-endian numbers, the
+  `<count-width><count><entry-width><entries>` array packing, the
+  charset/namesData/nameIndexes trie for object keys, UTF-8 string table.
+- **`scn.py`** — scenario extraction. Observed shape:
+  `root.scenes[].texts[i] = [display|null, [[label|null, text, len]…],
+  voice, flags, stage]`; each take of a line is its own unit; speaker =
+  display or take label; kind = dialogue/narration by speaker presence.
+- **Extract-only, deliberately.** Writing PSB (offset/string-table rebuild)
+  is exactly the Phase 6 / family-3 job the roadmap warns about; until it
+  exists the identity gate reports `.scn` files as "no write path for this
+  format yet" instead of pretending (hard rule 2 — no translated build for
+  this title until that lands). Phase 2 browsing needs only extraction.
+- **Verified on the target:** 3,894 units from 16 files (1,971 dialogue /
+  1,923 narration), all eight speakers correctly attributed and matching the
+  title's own charlist.csv, 59 duplicate groups.
+
 ## Running it
 
 ```

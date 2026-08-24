@@ -13,7 +13,8 @@ def test_gate_a_identity(tmp_path: Path) -> None:
         Workspace(game_dir=FIXTURE, work_dir=tmp_path)
     )
     assert result.identity.passed, [f.message for f in result.identity.failures]
-    assert result.identity.files_checked == 2, "both encodings must be exercised"
+    # cp932, UTF-16LE, and a mode-1 scrambled file must all round-trip.
+    assert result.identity.files_checked == 3, "all three storage forms exercised"
     assert result.identity.units_checked >= 8, result.identity.units_checked
 
 
